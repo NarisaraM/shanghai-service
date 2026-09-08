@@ -1,0 +1,51 @@
+# Shanghai Service – Sailing Schedule Tools
+
+เครื่องมือดึงและรวมตารางการเดินเรือเส้นทาง **Laem Chabang → Shanghai** จากหลายสายเรือ
+
+## สคริปต์ดึงข้อมูลรายสายเรือ
+
+| ไฟล์ | แหล่งข้อมูล | วิธีดึง |
+|---|---|---|
+| `sitc_schedule.py` | SITC | public JSON API |
+| `tslines_schedule.py` | T.S. Lines | public JSON API |
+| `jj_shipping_schedule.py` | JJ Shipping (NVOCC) | เว็บ + Playwright |
+| `ekmtc_schedule.py` | e-KMTC | public JSON API *(ไม่ได้ใช้ในตัวรวม — ดูหมายเหตุ)* |
+| `zim_schedule.py` | ZIM | public JSON API *(ไม่ได้ใช้ในตัวรวม — ดูหมายเหตุ)* |
+
+แต่ละไฟล์รันเดี่ยว ๆ ได้ และ export เป็น Excel เช่น
+
+```bash
+python sitc_schedule.py --date-from 2026-09-01 --date-to 2026-12-31
+```
+
+## ตัวรวมข้อมูล + Dashboard
+
+`build_shanghai_schedule.py` เรียกสคริปต์ทุกตัว รวมข้อมูลเป็นชุดเดียว รวมเที่ยวเรือ
+ที่ซ้ำกัน (เรือลำเดียวกัน + ออกเรือวันเดียวกัน) แล้วแจกแจงว่าจองผ่านสายเรือใดได้บ้าง
+พร้อมสร้างปฏิทิน (เลือกดูทีละเดือน) และ Dashboard HTML
+
+```bash
+python build_shanghai_schedule.py
+python build_shanghai_schedule.py --start 2026-09-01 --end 2026-12-31
+python build_shanghai_schedule.py --only sitc,tslines
+python build_shanghai_schedule.py --offline      # ใช้ข้อมูลจาก output/_cache.json
+```
+
+ผลลัพธ์ (โฟลเดอร์ `output/`, ไม่ commit เข้า git):
+
+- `shanghai_schedule_dashboard.html` – ปฏิทิน + Dashboard
+- `combined_schedule.xlsx` – 3 ชีต: Merged / All Sailings / Sources
+- `shanghai_schedule.ics` – ไฟล์ปฏิทินนำเข้า Google/Outlook
+
+## ติดตั้ง
+
+```bash
+pip install -r requirements.txt
+playwright install chromium
+```
+
+## หมายเหตุ: e-KMTC / ZIM
+
+`ekmtc_schedule.py` และ `zim_schedule.py` ยังอยู่ในโปรเจกต์ แต่ถูกตัดออกจาก
+`build_shanghai_schedule.py` แล้ว จึงไม่ปรากฏใน output และ Dashboard
+(สองโดเมนนี้บล็อกการเข้าถึงที่ระดับ IP/ภูมิภาคผ่าน Akamai — รันจากเครือข่ายในไทยได้ตามปกติ)
