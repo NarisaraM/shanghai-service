@@ -14,9 +14,6 @@ build_shanghai_schedule.py
     tslines_schedule.py     -> สายเรือ T.S. Lines      (public JSON API)
     jj_shipping_schedule.py -> NVOCC JJ Shipping       (เว็บ + Playwright)
 
-(หมายเหตุ: ekmtc_schedule.py / zim_schedule.py มีอยู่ในโฟลเดอร์ แต่ถูกตัดออกจาก
-การรวมข้อมูลตามที่ผู้ใช้ระบุ จึงไม่ปรากฏใน output และ Dashboard)
-
 การทำงาน
 --------
 1. เรียกฟังก์ชันดึงข้อมูลของแต่ละ scraper (แหล่งไหนล่ม/โดนบล็อก ก็ข้ามไป

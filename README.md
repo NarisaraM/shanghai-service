@@ -9,8 +9,6 @@
 | `sitc_schedule.py` | SITC | public JSON API |
 | `tslines_schedule.py` | T.S. Lines | public JSON API |
 | `jj_shipping_schedule.py` | JJ Shipping (NVOCC) | เว็บ + Playwright |
-| `ekmtc_schedule.py` | e-KMTC | public JSON API *(ไม่ได้ใช้ในตัวรวม — ดูหมายเหตุ)* |
-| `zim_schedule.py` | ZIM | public JSON API *(ไม่ได้ใช้ในตัวรวม — ดูหมายเหตุ)* |
 
 แต่ละไฟล์รันเดี่ยว ๆ ได้ และ export เป็น Excel เช่น
 
@@ -43,9 +41,3 @@ python build_shanghai_schedule.py --offline      # ใช้ข้อมูล�
 pip install -r requirements.txt
 playwright install chromium
 ```
-
-## หมายเหตุ: e-KMTC / ZIM
-
-`ekmtc_schedule.py` และ `zim_schedule.py` ยังอยู่ในโปรเจกต์ แต่ถูกตัดออกจาก
-`build_shanghai_schedule.py` แล้ว จึงไม่ปรากฏใน output และ Dashboard
-(สองโดเมนนี้บล็อกการเข้าถึงที่ระดับ IP/ภูมิภาคผ่าน Akamai — รันจากเครือข่ายในไทยได้ตามปกติ)
