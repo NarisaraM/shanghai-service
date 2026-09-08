@@ -12,7 +12,14 @@ build_shanghai_schedule.py
 ---------------------------------------------------------
     input/sitc_schedule.py        -> สายเรือ SITC        (public JSON API)
     input/tslines_schedule.py     -> สายเรือ T.S. Lines  (public JSON API)
+    input/kmtc_schedule_export.py -> สายเรือ KMTC        (public JSON API)
+    input/zim_schedule_scraper.py -> สายเรือ ZIM         (เว็บ + Playwright)
+    input/culines_ptp_schedule.py -> สายเรือ CU Lines    (public JSON API)
     input/jj_shipping_schedule.py -> NVOCC JJ Shipping   (เว็บ + Playwright)
+
+หมายเหตุ: KMTC และ ZIM ใช้ Akamai ป้องกันบอต บาง IP/ภูมิภาค (เช่น เซิร์ฟเวอร์
+นอกไทย) จะโดนบล็อกทั้งโดเมน สคริปต์จะรายงานสถานะ "ถูกบล็อก" บน Dashboard
+แล้วข้ามไป — รันจากเครือข่ายในไทยจะดึงได้ตามปกติ
 
 การทำงาน
 --------
@@ -64,6 +71,9 @@ LANE = "Laem Chabang, Thailand  \u2192  Shanghai, China"
 SOURCE_META = {
     "SITC":        {"color": "#2563eb", "label": "SITC"},
     "T.S. Lines":  {"color": "#16a34a", "label": "T.S. Lines"},
+    "KMTC":        {"color": "#db2777", "label": "KMTC"},
+    "ZIM":         {"color": "#f59e0b", "label": "ZIM"},
+    "CU Lines":    {"color": "#0891b2", "label": "CU Lines"},
     "JJ Shipping": {"color": "#7c3aed", "label": "JJ Shipping (NVOCC)"},
 }
 DEFAULT_COLOR = "#64748b"
@@ -289,9 +299,102 @@ def fetch_jj(start: dt.date, end: dt.date) -> list[dict]:
     return out
 
 
+def _name_voy(text):
+    """'JARU BHUM 2634N' -> ('JARU BHUM', '2634N'); ถ้าไม่มีเลขเที่ยวต่อท้ายคืน voyage=None"""
+    if not text:
+        return None, None
+    parts = str(text).split()
+    if len(parts) > 1 and re.match(r"^\d+[A-Za-z]?$", parts[-1]):
+        return " ".join(parts[:-1]), parts[-1]
+    return str(text), None
+
+
+def _akamai_guard(url: str, label: str) -> None:
+    """เช็คเร็ว ๆ ว่าโดเมนถูก Akamai บล็อกที่ระดับ IP หรือไม่ (จะได้ไม่เสียเวลา retry)"""
+    import requests
+    try:
+        r = requests.get(url, timeout=15, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                          "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"})
+    except requests.RequestException:
+        return
+    if r.status_code in (401, 403) and ("Access Denied" in r.text or "edgesuite" in r.text):
+        raise SourceBlocked(
+            f"ถูกบล็อกที่ระดับ IP/ภูมิภาค ({url} ตอบ HTTP {r.status_code} – Akamai Access Denied). "
+            f"รันสคริปต์นี้จากเครื่อง/เครือข่ายในไทย (หรือผ่าน VPN ไทย) แล้ว {label} จะกลับมาใช้ได้")
+
+
+def fetch_kmtc(start: dt.date, end: dt.date) -> list[dict]:
+    import kmtc_schedule_export as m
+    _akamai_guard("https://www.ekmtc.com/", "KMTC")
+    rows = http_retry(lambda: m.collect_schedule(
+        "TH", "LCH", "LAEM CHABANG", "CN", "SHA", "SHANGHAI", start, end))
+    out = []
+    for it in rows:
+        out.append(_rec(
+            "KMTC", carrier="KMTC",
+            service=it.get("rteCdNm") or it.get("rteCd"),
+            vessel=it.get("vslNm"), voyage=it.get("voyNo"),
+            pol="LAEM CHABANG", pod="SHANGHAI",
+            pol_terminal=it.get("otrmlNm") or it.get("polTml"),
+            pod_terminal=it.get("itrmlNm") or it.get("podTml"),
+            etd=m.fmt_dt(it.get("etd", ""), it.get("etdTm", "")),
+            eta=m.fmt_dt(it.get("eta", ""), it.get("etaTm", "")),
+            transit_days=(it.get("transitTime") or "").strip(),
+            direct_or_ts="T/S" if it.get("ts") == "Y" else "Direct",
+        ))
+    return out
+
+
+def fetch_zim(start: dt.date, end: dt.date) -> list[dict]:
+    import zim_schedule_scraper as m
+    _akamai_guard("https://www.zim.com/", "ZIM")
+    raw = m.scrape_schedule("THLEM;10", "CNSNH;10", start, end, headless=True, verbose=True)
+    out = []
+    for r in m.to_records(raw, start, end):
+        out.append(_rec(
+            "ZIM", carrier="ZIM",
+            vessel=r.get("Vessel Name"), voyage=r.get("Voyage"),
+            pol="LAEM CHABANG", pod="SHANGHAI",
+            etd=r.get("Departure"), eta=r.get("Arrival"),
+            transit_days=r.get("Transit Time (Days)"),
+            direct_or_ts=r.get("Transit Type") or "Direct",
+        ))
+    return out
+
+
+def fetch_culines(start: dt.date, end: dt.date) -> list[dict]:
+    import culines_ptp_schedule as m
+    import requests
+    session = requests.Session()
+    origin = http_retry(lambda: m.get_port_code(session, "Laem Chabang"))
+    dest = http_retry(lambda: m.get_port_code(session, "Shanghai"))
+    raw = http_retry(lambda: m.fetch_schedule(
+        session, origin["locCd"], dest["locCd"], start.isoformat(), end.isoformat(), ""))
+    out = []
+    for rec in raw:
+        n = m.normalize_record(rec)
+        name, voy = _name_voy(n.get("Vessel"))
+        out.append(_rec(
+            "CU Lines", carrier="CU Lines",
+            service=n.get("Lane"),
+            vessel=name, voyage=voy or n.get("Consortium/Voyage"),
+            pol=n.get("Loading Port") or "LAEM CHABANG",
+            pod=n.get("Discharging Port") or "SHANGHAI",
+            etd=n.get("Departure Date"), eta=n.get("Arrival Date"),
+            transit_days=n.get("T/Time Total (Day)"),
+            direct_or_ts=n.get("Direct/T-S") or "Direct",
+            cy_cutoff=n.get("Cargo Closing Time"),
+        ))
+    return out
+
+
 SOURCES = {
     "sitc":    ("SITC",        fetch_sitc),
     "tslines": ("T.S. Lines",  fetch_tslines),
+    "kmtc":    ("KMTC",        fetch_kmtc),
+    "zim":     ("ZIM",         fetch_zim),
+    "culines": ("CU Lines",    fetch_culines),
     "jj":      ("JJ Shipping", fetch_jj),
 }
 

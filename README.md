@@ -16,7 +16,14 @@ output/                      ผลลัพธ์ที่สร้างขึ
 |---|---|---|
 | `input/sitc_schedule.py` | SITC | public JSON API |
 | `input/tslines_schedule.py` | T.S. Lines | public JSON API |
+| `input/kmtc_schedule_export.py` | KMTC | public JSON API |
+| `input/zim_schedule_scraper.py` | ZIM | เว็บ + Playwright |
+| `input/culines_ptp_schedule.py` | CU Lines | public JSON API |
 | `input/jj_shipping_schedule.py` | JJ Shipping (NVOCC) | เว็บ + Playwright |
+
+> **KMTC / ZIM:** สองเว็บนี้ใช้ Akamai กันบอต ถ้ารันจากเซิร์ฟเวอร์/IP นอกไทยจะโดน
+> บล็อกทั้งโดเมน (Dashboard จะขึ้นสถานะ "ถูกบล็อก" แล้วข้ามไป) — รันจากเครือข่าย
+> ในไทยจะดึงข้อมูลได้ตามปกติ
 
 แต่ละไฟล์รันเดี่ยว ๆ ได้ และ export เป็น Excel เช่น
 
