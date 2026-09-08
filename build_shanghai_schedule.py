@@ -12,14 +12,17 @@ build_shanghai_schedule.py
 ---------------------------------------------------------
     input/sitc_schedule.py        -> สายเรือ SITC        (public JSON API)
     input/tslines_schedule.py     -> สายเรือ T.S. Lines  (public JSON API)
-    input/kmtc_schedule_export.py -> สายเรือ KMTC        (public JSON API)
-    input/zim_schedule_scraper.py -> สายเรือ ZIM         (เว็บ + Playwright)
     input/culines_ptp_schedule.py -> สายเรือ CU Lines    (public JSON API)
     input/jj_shipping_schedule.py -> NVOCC JJ Shipping   (เว็บ + Playwright)
 
-หมายเหตุ: KMTC และ ZIM ใช้ Akamai ป้องกันบอต บาง IP/ภูมิภาค (เช่น เซิร์ฟเวอร์
-นอกไทย) จะโดนบล็อกทั้งโดเมน สคริปต์จะรายงานสถานะ "ถูกบล็อก" บน Dashboard
-แล้วข้ามไป — รันจากเครือข่ายในไทยจะดึงได้ตามปกติ
+    KMTC   -> อ่านจากไฟล์ .xls รายเดือนในโฟลเดอร์  KMTC/
+    ZIM    -> อ่านจากไฟล์  zim_*.xlsx  ที่รากโปรเจกต์
+
+หมายเหตุ: เว็บ KMTC (ekmtc.com) และ ZIM (zim.com) ใช้ Akamai กันบอต — IP นอกไทย
+จะโดนบล็อกทั้งโดเมน จึงใช้วิธี "ดาวน์โหลดไฟล์เอง" แทน: เปิดหน้า schedule ของ
+สองสายนี้จากเครือข่ายในไทย กด export Excel แล้ววางไฟล์ไว้ตามที่ระบุข้างบน
+(KMTC: 1 ไฟล์ต่อเดือน วางในโฟลเดอร์ KMTC/ ;  ZIM: ผลจาก input/zim_schedule_scraper.py)
+ถ้าไม่มีไฟล์ Dashboard จะขึ้นสถานะ "ถูกบล็อก" พร้อมวิธีแก้
 
 การทำงาน
 --------
@@ -93,9 +96,10 @@ def norm_vessel(name: str | None) -> str:
     return s
 
 
-MONTHS = {m.lower(): i for i, m in enumerate(
-    ["", "January", "February", "March", "April", "May", "June", "July",
-     "August", "September", "October", "November", "December"])}
+_MONTH_NAMES = ["", "January", "February", "March", "April", "May", "June", "July",
+                "August", "September", "October", "November", "December"]
+MONTHS = {name.lower(): i for i, name in enumerate(_MONTH_NAMES)}
+MONTHS.update({name.lower()[:3]: i for i, name in enumerate(_MONTH_NAMES) if name})
 
 
 def parse_dt(value) -> tuple[str | None, dt.date | None]:
@@ -123,6 +127,18 @@ def parse_dt(value) -> tuple[str | None, dt.date | None]:
     m = re.match(r"(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ ](\d{1,2}):(\d{2}))?", s)
     if m:
         y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            date = dt.date(y, mo, d)
+        except ValueError:
+            return s, None
+        if m.group(4) is not None:
+            return f"{date.isoformat()} {int(m.group(4)):02d}:{m.group(5)}", date
+        return date.isoformat(), date
+
+    # 1b) YYYY.Mon.DD [HH:MM]  (รูปแบบไฟล์ export ของ KMTC เช่น '2026.Nov.15 23:00')
+    m = re.match(r"(\d{4})\.([A-Za-z]{3,})\.(\d{1,2})(?:[ ](\d{1,2}):(\d{2}))?", s)
+    if m and m.group(2).lower() in MONTHS:
+        y, mo, d = int(m.group(1)), MONTHS[m.group(2).lower()], int(m.group(3))
         try:
             date = dt.date(y, mo, d)
         except ValueError:
@@ -309,56 +325,113 @@ def _name_voy(text):
     return str(text), None
 
 
-def _akamai_guard(url: str, label: str) -> None:
-    """เช็คเร็ว ๆ ว่าโดเมนถูก Akamai บล็อกที่ระดับ IP หรือไม่ (จะได้ไม่เสียเวลา retry)"""
-    import requests
-    try:
-        r = requests.get(url, timeout=15, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                          "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"})
-    except requests.RequestException:
-        return
-    if r.status_code in (401, 403) and ("Access Denied" in r.text or "edgesuite" in r.text):
-        raise SourceBlocked(
-            f"ถูกบล็อกที่ระดับ IP/ภูมิภาค ({url} ตอบ HTTP {r.status_code} – Akamai Access Denied). "
-            f"รันสคริปต์นี้จากเครื่อง/เครือข่ายในไทย (หรือผ่าน VPN ไทย) แล้ว {label} จะกลับมาใช้ได้")
+# --------------------------------------------------------------------------- #
+#  KMTC + ZIM: อ่านจากไฟล์ที่ผู้ใช้ดาวน์โหลดเอง (เว็บ 2 รายนี้บล็อก IP นอกไทย)    #
+#  - KMTC : ไฟล์ .xls รายเดือนในโฟลเดอร์ KMTC/  (export จากหน้า Leg Schedule)     #
+#  - ZIM  : ไฟล์ zim_*.xlsx ที่ราก repo (ผลจาก input/zim_schedule_scraper.py)     #
+# --------------------------------------------------------------------------- #
+KMTC_DIR = HERE / "KMTC"
+ZIM_GLOBS = ("zim_*.xlsx", "zim_*.xls", "input/zim_*.xlsx", "exports/zim_*.xlsx")
 
 
 def fetch_kmtc(start: dt.date, end: dt.date) -> list[dict]:
-    import kmtc_schedule_export as m
-    _akamai_guard("https://www.ekmtc.com/", "KMTC")
-    rows = http_retry(lambda: m.collect_schedule(
-        "TH", "LCH", "LAEM CHABANG", "CN", "SHA", "SHANGHAI", start, end))
-    out = []
-    for it in rows:
+    import kmtc_extract_text as kx
+
+    if not KMTC_DIR.is_dir():
+        raise SourceBlocked(
+            f"ไม่พบโฟลเดอร์ {KMTC_DIR.name}/ — เว็บ KMTC บล็อก IP นอกไทย ให้เปิด "
+            "ekmtc.com > Schedule > Leg Schedule (LCH→SHA) กด Excel รายเดือน "
+            "แล้ววางไฟล์ .xls ไว้ในโฟลเดอร์ KMTC/ จากนั้นรันใหม่")
+
+    files = kx.collect_files([str(KMTC_DIR)])
+    if not files:
+        raise SourceBlocked(f"โฟลเดอร์ {KMTC_DIR.name}/ ว่าง — ต้องมีไฟล์ .xls export จาก KMTC")
+
+    frames = []
+    for path in files:
+        for raw in kx.read_workbook_raw(path).values():
+            tidy = kx.flatten_kmtc_sheet(raw)
+            if tidy is not None and not tidy.empty:
+                frames.append(tidy)
+    if not frames:
+        raise RuntimeError(f"อ่านไฟล์ KMTC ได้ แต่ไม่พบตารางในรูปแบบที่รู้จัก ({len(files)} ไฟล์)")
+
+    import pandas as pd
+    combined = pd.concat(frames, ignore_index=True).drop_duplicates()
+
+    out, seen = [], set()
+    for _, r in combined.iterrows():
+        vv = str(r.get("Vessel/Voyage") or "")
+        vessel, voyage = (vv.split("/", 1) + [""])[:2] if "/" in vv else (vv, "")
+        etd_txt, etd_d = parse_dt(r.get("Departure ETD"))
+        if etd_d is None or not (start <= etd_d <= end):
+            continue
+        key = (norm_vessel(vessel), voyage.strip(), etd_d.isoformat())
+        if key in seen:
+            continue
+        seen.add(key)
+        ts_place = clean(r.get("T/S Place"))
         out.append(_rec(
             "KMTC", carrier="KMTC",
-            service=it.get("rteCdNm") or it.get("rteCd"),
-            vessel=it.get("vslNm"), voyage=it.get("voyNo"),
+            vessel=vessel.strip(), voyage=voyage.strip(),
             pol="LAEM CHABANG", pod="SHANGHAI",
-            pol_terminal=it.get("otrmlNm") or it.get("polTml"),
-            pod_terminal=it.get("itrmlNm") or it.get("podTml"),
-            etd=m.fmt_dt(it.get("etd", ""), it.get("etdTm", "")),
-            eta=m.fmt_dt(it.get("eta", ""), it.get("etaTm", "")),
-            transit_days=(it.get("transitTime") or "").strip(),
-            direct_or_ts="T/S" if it.get("ts") == "Y" else "Direct",
+            pol_terminal=clean(r.get("Departure Terminal")),
+            pod_terminal=clean(r.get("Arrival Terminal")),
+            etd=r.get("Departure ETD"), eta=r.get("Arrival ETA"),
+            transit_days=r.get("T/T"),
+            direct_or_ts="Direct" if not ts_place or ts_place == "-" else "T/S",
+            doc_cutoff=r.get("Document Closing Time"),
+            cy_cutoff=r.get("Cargo Closing Time"),
         ))
     return out
 
 
+def _find_zim_file() -> "Path | None":
+    for pat in ZIM_GLOBS:
+        hits = sorted(HERE.glob(pat))
+        if hits:
+            return hits[-1]
+    return None
+
+
 def fetch_zim(start: dt.date, end: dt.date) -> list[dict]:
-    import zim_schedule_scraper as m
-    _akamai_guard("https://www.zim.com/", "ZIM")
-    raw = m.scrape_schedule("THLEM;10", "CNSNH;10", start, end, headless=True, verbose=True)
+    import openpyxl
+
+    path = _find_zim_file()
+    if path is None:
+        raise SourceBlocked(
+            "ไม่พบไฟล์ zim_*.xlsx — เว็บ ZIM บล็อก IP นอกไทย ให้รัน "
+            "`python input/zim_schedule_scraper.py` จากเครือข่ายในไทย "
+            "แล้ววางไฟล์ผลลัพธ์ (เช่น zim_laemchabang_shanghai_schedule.xlsx) ไว้ที่ราก repo")
+
+    wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+    if not rows:
+        return []
+    header = [str(c or "").strip() for c in rows[0]]
+    idx = {name: i for i, name in enumerate(header)}
+
+    def cell(row, name):
+        i = idx.get(name)
+        return row[i] if i is not None and i < len(row) else None
+
     out = []
-    for r in m.to_records(raw, start, end):
+    for row in rows[1:]:
+        if not any(row):
+            continue
+        _, etd_d = parse_dt(cell(row, "Departure"))
+        if etd_d is None or not (start <= etd_d <= end):
+            continue
         out.append(_rec(
             "ZIM", carrier="ZIM",
-            vessel=r.get("Vessel Name"), voyage=r.get("Voyage"),
+            service=clean(cell(row, "Vessel Code")),
+            vessel=cell(row, "Vessel Name"), voyage=cell(row, "Voyage"),
             pol="LAEM CHABANG", pod="SHANGHAI",
-            etd=r.get("Departure"), eta=r.get("Arrival"),
-            transit_days=r.get("Transit Time (Days)"),
-            direct_or_ts=r.get("Transit Type") or "Direct",
+            etd=cell(row, "Departure"), eta=cell(row, "Arrival"),
+            transit_days=cell(row, "Transit Time (Days)"),
+            direct_or_ts=clean(cell(row, "Transit Type")) or "Direct",
         ))
     return out
 

@@ -16,14 +16,21 @@ output/                      ผลลัพธ์ที่สร้างขึ
 |---|---|---|
 | `input/sitc_schedule.py` | SITC | public JSON API |
 | `input/tslines_schedule.py` | T.S. Lines | public JSON API |
-| `input/kmtc_schedule_export.py` | KMTC | public JSON API |
-| `input/zim_schedule_scraper.py` | ZIM | เว็บ + Playwright |
 | `input/culines_ptp_schedule.py` | CU Lines | public JSON API |
 | `input/jj_shipping_schedule.py` | JJ Shipping (NVOCC) | เว็บ + Playwright |
+| `input/kmtc_extract_text.py` | KMTC | อ่านไฟล์ `.xls` ในโฟลเดอร์ `KMTC/` |
+| `input/extract_schedule_text.py` | ZIM | อ่านไฟล์ `zim_*.xlsx` ที่ราก repo |
 
-> **KMTC / ZIM:** สองเว็บนี้ใช้ Akamai กันบอต ถ้ารันจากเซิร์ฟเวอร์/IP นอกไทยจะโดน
-> บล็อกทั้งโดเมน (Dashboard จะขึ้นสถานะ "ถูกบล็อก" แล้วข้ามไป) — รันจากเครือข่าย
-> ในไทยจะดึงข้อมูลได้ตามปกติ
+> **KMTC / ZIM:** เว็บสองรายนี้ใช้ Akamai กันบอต IP นอกไทยจะโดนบล็อกทั้งโดเมน
+> จึงใช้วิธี *ดาวน์โหลดไฟล์เอง*:
+> - **KMTC** — เปิด ekmtc.com → Schedule → Leg Schedule (LCH→SHA) กดปุ่ม Excel
+>   ทีละเดือน วางไฟล์ `.xls` ทั้งหมดไว้ในโฟลเดอร์ `KMTC/`
+>   (หรือรัน `python input/kmtc_schedule_export.py` จากเครือข่ายในไทย)
+> - **ZIM** — รัน `python input/zim_schedule_scraper.py` จากเครือข่ายในไทย แล้ววาง
+>   `zim_laemchabang_shanghai_schedule.xlsx` ไว้ที่ราก repo
+>
+> `build_shanghai_schedule.py` จะอ่านไฟล์เหล่านี้เข้ามารวมเอง ถ้าไม่มีไฟล์จะขึ้น
+> สถานะ "ถูกบล็อก" พร้อมวิธีแก้บน Dashboard
 
 แต่ละไฟล์รันเดี่ยว ๆ ได้ และ export เป็น Excel เช่น
 
