@@ -5,14 +5,14 @@ build_shanghai_schedule.py
 ==========================
 
 รวม (aggregate) ตารางการเดินเรือเส้นทาง **Laem Chabang -> Shanghai** จาก
-สคริปต์ scraper ทุกไฟล์ที่อยู่ในโฟลเดอร์เดียวกันนี้ ให้กลายเป็นชุดข้อมูลเดียว
+สคริปต์ scraper ต้นฉบับในโฟลเดอร์ input/ ให้กลายเป็นชุดข้อมูลเดียว
 พร้อมสร้าง "ปฏิทินตารางเรือ" (calendar) และ Dashboard HTML ที่อ่านง่าย
 
-แหล่งข้อมูลที่รองรับ (ตรวจพบไฟล์ *_schedule.py โดยอัตโนมัติ)
------------------------------------------------------------
-    sitc_schedule.py        -> สายเรือ SITC            (public JSON API)
-    tslines_schedule.py     -> สายเรือ T.S. Lines      (public JSON API)
-    jj_shipping_schedule.py -> NVOCC JJ Shipping       (เว็บ + Playwright)
+แหล่งข้อมูลที่รองรับ (สคริปต์ต้นฉบับอยู่ในโฟลเดอร์ input/)
+---------------------------------------------------------
+    input/sitc_schedule.py        -> สายเรือ SITC        (public JSON API)
+    input/tslines_schedule.py     -> สายเรือ T.S. Lines  (public JSON API)
+    input/jj_shipping_schedule.py -> NVOCC JJ Shipping   (เว็บ + Playwright)
 
 การทำงาน
 --------
@@ -54,6 +54,7 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+INPUT_DIR = HERE / "input"          # โฟลเดอร์เก็บสคริปต์ scraper ต้นฉบับ
 OUT_DIR = HERE / "output"
 CACHE_FILE = OUT_DIR / "_cache.json"
 
@@ -765,6 +766,9 @@ def main():
         sys.exit("--end ต้องไม่มาก่อน --start")
 
     OUT_DIR.mkdir(exist_ok=True)
+    if not INPUT_DIR.is_dir():
+        sys.exit(f"ไม่พบโฟลเดอร์ {INPUT_DIR} (ต้องมีสคริปต์ scraper ต้นฉบับอยู่ข้างใน)")
+    sys.path.insert(0, str(INPUT_DIR))
     sys.path.insert(0, str(HERE))
 
     only = {s.strip().lower() for s in args.only.split(",") if s.strip()}

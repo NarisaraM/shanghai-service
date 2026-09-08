@@ -2,18 +2,26 @@
 
 เครื่องมือดึงและรวมตารางการเดินเรือเส้นทาง **Laem Chabang → Shanghai** จากหลายสายเรือ
 
-## สคริปต์ดึงข้อมูลรายสายเรือ
+## โครงสร้างโปรเจกต์
+
+```
+build_shanghai_schedule.py   ตัวรวมข้อมูล + สร้าง Dashboard
+input/                       สคริปต์ scraper ต้นฉบับรายสายเรือ
+output/                      ผลลัพธ์ที่สร้างขึ้น (ไม่ commit เข้า git)
+```
+
+## สคริปต์ดึงข้อมูลรายสายเรือ (`input/`)
 
 | ไฟล์ | แหล่งข้อมูล | วิธีดึง |
 |---|---|---|
-| `sitc_schedule.py` | SITC | public JSON API |
-| `tslines_schedule.py` | T.S. Lines | public JSON API |
-| `jj_shipping_schedule.py` | JJ Shipping (NVOCC) | เว็บ + Playwright |
+| `input/sitc_schedule.py` | SITC | public JSON API |
+| `input/tslines_schedule.py` | T.S. Lines | public JSON API |
+| `input/jj_shipping_schedule.py` | JJ Shipping (NVOCC) | เว็บ + Playwright |
 
 แต่ละไฟล์รันเดี่ยว ๆ ได้ และ export เป็น Excel เช่น
 
 ```bash
-python sitc_schedule.py --date-from 2026-09-01 --date-to 2026-12-31
+python input/sitc_schedule.py --date-from 2026-09-01 --date-to 2026-12-31
 ```
 
 ## ตัวรวมข้อมูล + Dashboard
