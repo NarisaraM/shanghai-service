@@ -73,6 +73,7 @@ HERE = Path(__file__).resolve().parent
 INPUT_DIR = HERE / "input"          # โฟลเดอร์เก็บสคริปต์ scraper ต้นฉบับ
 OUT_DIR = HERE / "output"
 CACHE_FILE = OUT_DIR / "_cache.json"
+DOCS_DIR = HERE / "docs"          # หน้าเว็บสำหรับ GitHub Pages
 
 LANE = "Laem Chabang, Thailand  \u2192  Shanghai, China"
 
@@ -1182,6 +1183,11 @@ def main():
     write_excel(merged, records, statuses, xlsx)
     write_ics(merged, ics)
     write_html(merged, records, statuses, start, end, htmlf)
+
+    # เผยแพร่หน้า Dashboard ผ่าน GitHub Pages: docs/laem-chabang-shanghai/index.html
+    docs_page = DOCS_DIR / "laem-chabang-shanghai" / "index.html"
+    docs_page.parent.mkdir(parents=True, exist_ok=True)
+    docs_page.write_text(htmlf.read_text(encoding="utf-8"), encoding="utf-8")
     CACHE_FILE.write_text(json.dumps(
         {"start": start.isoformat(), "end": end.isoformat(),
          "records": records, "statuses": statuses,
@@ -1199,6 +1205,7 @@ def main():
     print(f"  {xlsx}")
     print(f"  {htmlf}")
     print(f"  {ics}")
+    print(f"  {docs_page}   (GitHub Pages)")
 
 
 if __name__ == "__main__":
