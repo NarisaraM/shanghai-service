@@ -22,17 +22,12 @@ output/                      ผลลัพธ์ที่สร้างขึ
 | `input/jj_shipping_schedule.py` | SJJ (NVOCC JJ Shipping) | เว็บ + Playwright (ดึงสด) |
 | `input/kmtc_extract_text.py` + `KMTC/*.xls` | KMTC | อ่านไฟล์ที่ดาวน์โหลดเอง |
 | `input/extract_schedule_text.py` + `zim_*.xlsx` | ZIM | อ่านไฟล์ที่ดาวน์โหลดเอง |
-| `input/rcl_sailing_schedule.py` → `RCL_*Schedule*.xlsx` | RCL | อ่านไฟล์ที่ดาวน์โหลดเอง |
-| `input/cma_cgm_schedule.py` → `CMA_CGM_*.xlsx` | CMA CGM | อ่านไฟล์ที่ดาวน์โหลดเอง |
 
-> **KMTC / ZIM / RCL / CMA CGM:** เว็บ 4 รายนี้กันบอตที่ระดับ IP (Akamai / Cloudflare
-> / DataDome) — IP นอกไทยจะโดนบล็อก จึงต้อง *ดาวน์โหลดไฟล์เอง* จากเครือข่ายในไทย
-> แล้ววางไว้ที่ราก repo:
+> **KMTC / ZIM:** เว็บสองรายนี้ใช้ Akamai กันบอต IP นอกไทยจะโดนบล็อกทั้งโดเมน
+> จึงต้อง *ดาวน์โหลดไฟล์เอง* จากเครือข่ายในไทย แล้ววางไว้ที่ราก repo:
 > - **KMTC** — เปิด ekmtc.com → Leg Schedule (LCH→SHA) กด Excel ทีละเดือน วางใน `KMTC/`
 >   (หรือรัน `python input/kmtc_schedule_export.py`)
 > - **ZIM** — `python input/zim_schedule_scraper.py` → วาง `zim_*.xlsx`
-> - **RCL** — `python input/rcl_sailing_schedule.py` (เปิดหน้าต่างเบราว์เซอร์) → วาง `RCL_*Schedule*.xlsx`
-> - **CMA CGM** — `python input/cma_cgm_schedule.py` (เปิดหน้าต่างเบราว์เซอร์ อาจต้องกดยืนยันตัวตน) → วาง `CMA_CGM_*.xlsx`
 >
 > `build_shanghai_schedule.py` จะอ่านไฟล์เหล่านี้เข้ามารวมเอง ถ้าไม่มีไฟล์จะขึ้น
 > สถานะ "ถูกบล็อก" พร้อมวิธีแก้บน Dashboard

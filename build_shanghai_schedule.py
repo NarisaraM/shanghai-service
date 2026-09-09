@@ -23,14 +23,11 @@ build_shanghai_schedule.py
     อ่านจากไฟล์ที่ดาวน์โหลดเอง (เว็บบล็อก IP นอกไทย):
     KMTC     -> ไฟล์ .xls รายเดือนในโฟลเดอร์  KMTC/
     ZIM      -> ไฟล์  zim_*.xlsx           ที่รากโปรเจกต์
-    RCL      -> ไฟล์  RCL_*Schedule*.xlsx  ที่รากโปรเจกต์
-    CMA CGM  -> ไฟล์  CMA_CGM_*.xlsx       ที่รากโปรเจกต์
 
-หมายเหตุ: KMTC/ZIM ใช้ Akamai, RCL ใช้ Cloudflare, CMA CGM ใช้ DataDome กันบอต —
-IP นอกไทยจะโดนบล็อก จึงใช้วิธี "ดาวน์โหลดไฟล์เอง": รันสคริปต์ input/*.py ของสายนั้น
-จากเครือข่ายในไทย (RCL/CMA CGM ต้องเปิดหน้าต่างเบราว์เซอร์ อาจต้องกดยืนยันตัวตน)
-แล้ววางไฟล์ผลลัพธ์ไว้ตามที่ระบุข้างบน ถ้าไม่มีไฟล์ Dashboard จะขึ้นสถานะ "ถูกบล็อก"
-พร้อมวิธีแก้
+หมายเหตุ: เว็บ KMTC (ekmtc.com) และ ZIM (zim.com) ใช้ Akamai กันบอต — IP นอกไทย
+จะโดนบล็อกทั้งโดเมน จึงใช้วิธี "ดาวน์โหลดไฟล์เอง": รันสคริปต์ input/*.py ของสายนั้น
+จากเครือข่ายในไทย แล้ววางไฟล์ผลลัพธ์ไว้ตามที่ระบุข้างบน ถ้าไม่มีไฟล์ Dashboard จะ
+ขึ้นสถานะ "ถูกบล็อก" พร้อมวิธีแก้
 
 การทำงาน
 --------
@@ -87,8 +84,6 @@ SOURCE_META = {
     "CU Lines":    {"color": "#0891b2", "label": "CU Lines"},
     "COSCO":       {"color": "#0f766e", "label": "COSCO"},
     "Yang Ming":   {"color": "#65a30d", "label": "Yang Ming (YML)"},
-    "RCL":         {"color": "#e11d48", "label": "RCL"},
-    "CMA CGM":     {"color": "#475569", "label": "CMA CGM"},
     "SJJ":         {"color": "#7c3aed", "label": "SJJ"},
 }
 DEFAULT_COLOR = "#64748b"
@@ -358,10 +353,6 @@ def _name_voy(text):
 # --------------------------------------------------------------------------- #
 KMTC_DIR = HERE / "KMTC"
 ZIM_GLOBS = ("zim_*.xlsx", "zim_*.xls", "input/zim_*.xlsx", "exports/zim_*.xlsx")
-RCL_GLOBS = ("RCL_*[Ss]chedule*.xlsx", "RCL_*.xlsx", "rcl_*.xlsx",
-             "input/RCL_*.xlsx", "exports/RCL_*.xlsx")
-CMA_GLOBS = ("CMA_CGM_*.xlsx", "CMA*CGM*.xlsx", "cma_cgm_*.xlsx",
-             "input/CMA_CGM_*.xlsx", "exports/CMA_CGM_*.xlsx")
 
 
 def fetch_kmtc(start: dt.date, end: dt.date) -> list[dict]:
@@ -527,56 +518,6 @@ def fetch_yml(start: dt.date, end: dt.date) -> list[dict]:
     return out
 
 
-def fetch_rcl(start: dt.date, end: dt.date) -> list[dict]:
-    path = _first_file(RCL_GLOBS)
-    if path is None:
-        raise SourceBlocked(
-            "ไม่พบไฟล์ RCL_Schedule_*.xlsx — เว็บ RCL มี Cloudflare กันบอต ให้รัน "
-            "`python input/rcl_sailing_schedule.py` (เปิดหน้าต่างเบราว์เซอร์) จากเครือข่ายในไทย "
-            "แล้ววางไฟล์ผลลัพธ์ไว้ที่ราก repo")
-    out = []
-    for r in _xlsx_rows(path):
-        etd_raw = r.get("Loading Port Departure") or r.get("Sailing Date (Loading Port Arrival)")
-        _, d = parse_dt(etd_raw)
-        if d is None or not (start <= d <= end):
-            continue
-        name, voy = _name_voy(r.get("Vessel"))
-        out.append(_rec(
-            "RCL", carrier="RCL",
-            vessel=name or r.get("Vessel"), voyage=r.get("Voyage No") or voy,
-            pol=r.get("POL") or "LAEM CHABANG", pod=r.get("POD") or "SHANGHAI",
-            etd=etd_raw, eta=r.get("Destination Arrival"),
-            transit_days=r.get("Transit Time"),
-        ))
-    return out
-
-
-def fetch_cma(start: dt.date, end: dt.date) -> list[dict]:
-    path = _first_file(CMA_GLOBS)
-    if path is None:
-        raise SourceBlocked(
-            "ไม่พบไฟล์ CMA_CGM_Schedule_*.xlsx — เว็บ CMA CGM มี DataDome กันบอต ให้รัน "
-            "`python input/cma_cgm_schedule.py` (เปิดหน้าต่างเบราว์เซอร์ อาจต้องกดยืนยันตัวตน) "
-            "จากเครือข่ายในไทย แล้ววางไฟล์ผลลัพธ์ไว้ที่ราก repo")
-    out = []
-    for r in _xlsx_rows(path):
-        _, d = parse_dt(r.get("departure_date"))
-        if d is None or not (start <= d <= end):
-            continue
-        routing = str(r.get("routing") or "").lower()
-        out.append(_rec(
-            "CMA CGM", carrier="CMA CGM",
-            vessel=r.get("vessel"), voyage=r.get("voyage_ref"),
-            pol=r.get("pol") or "LAEM CHABANG", pod=r.get("pod") or "SHANGHAI",
-            pol_terminal=clean(r.get("pol_terminal")), pod_terminal=clean(r.get("pod_terminal")),
-            etd=r.get("departure_date"), eta=r.get("arrival_date"),
-            transit_days=r.get("transit_time"),
-            direct_or_ts="Direct" if "direct" in routing else ("T/S" if routing else "Direct"),
-            cy_cutoff=r.get("port_cutoff"),
-        ))
-    return out
-
-
 def fetch_culines(start: dt.date, end: dt.date) -> list[dict]:
     import culines_ptp_schedule as m
     import requests
@@ -611,8 +552,6 @@ SOURCES = {
     "culines": ("CU Lines",    fetch_culines),
     "cosco":   ("COSCO",       fetch_cosco),
     "yml":     ("Yang Ming",   fetch_yml),
-    "rcl":     ("RCL",         fetch_rcl),
-    "cmacgm":  ("CMA CGM",     fetch_cma),
     "sjj":     ("SJJ",         fetch_jj),
 }
 
