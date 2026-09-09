@@ -848,6 +848,7 @@ tr.main{cursor:pointer}
 tr.main:hover{background:#f8fafc}
 tr.details{display:none;background:#fbfcfe}
 tr.details.show{display:table-row}
+tr.wk-off,tr.wk-off + tr.details{display:none !important}
 .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;margin:1px 2px}
 .pill{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;background:#eef2f7;color:#334155;margin-right:4px}
 .tag-direct{background:#dcfce7;color:#166534}.tag-ts{background:#fef9c3;color:#854d0e}
@@ -859,6 +860,13 @@ tr.details.show{display:table-row}
 .mtab .cnt{display:inline-block;margin-left:7px;background:rgba(0,0,0,.12);border-radius:999px;
            padding:0 7px;font-size:11px}
 .mtab.active .cnt{background:rgba(255,255,255,.28)}
+.wtabs{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 12px}
+.wtab{border:1px solid var(--line);background:var(--card);border-radius:7px;padding:4px 10px;
+      cursor:pointer;font:inherit;font-size:12px;font-weight:600;color:var(--muted)}
+.wtab:hover{border-color:var(--accent);color:var(--ink)}
+.wtab.active{background:#e0f2fe;border-color:var(--accent);color:#0369a1}
+.wtab .cnt{display:inline-block;margin-left:6px;background:rgba(0,0,0,.10);border-radius:999px;
+           padding:0 6px;font-size:10px}
 .calpanel[hidden],.detpanel[hidden]{display:none}
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:18px}
 .cal .h{font-size:11px;color:var(--muted);text-align:center;padding:4px 0;font-weight:600}
@@ -892,23 +900,21 @@ document.querySelectorAll('.mtabs').forEach(function(group){
     });
   });
 });
+// กรองรายสัปดาห์ภายในตารางรายละเอียดของเดือนนั้น
+document.querySelectorAll('.wtabs').forEach(function(group){
+  var panel=group.closest('.detpanel');
+  group.querySelectorAll('.wtab').forEach(function(t){
+    t.addEventListener('click',function(){
+      group.querySelectorAll('.wtab').forEach(function(x){x.classList.remove('active');});
+      t.classList.add('active');
+      var w=t.getAttribute('data-w');
+      panel.querySelectorAll('tr.main').forEach(function(r){
+        r.classList.toggle('wk-off', w!=='all' && r.getAttribute('data-w')!==w);
+      });
+    });
+  });
+});
 """
-
-
-def _bars(counts: dict, colors: dict, keep_order: bool = False) -> str:
-    if not counts:
-        return "<p class='sub'>ไม่มีข้อมูล</p>"
-    mx = max(counts.values()) or 1
-    items = list(counts.items()) if keep_order else sorted(counts.items(), key=lambda kv: -kv[1])
-    out = []
-    for k, v in items:
-        pct = v / mx * 100
-        col = colors.get(k, DEFAULT_COLOR)
-        out.append(
-            f"<div class='bar'><div class='lab'>{html.escape(str(k))}</div>"
-            f"<div class='track'><div class='fill' style='width:{pct:.0f}%;background:{col}'></div></div>"
-            f"<div class='num'>{v}</div></div>")
-    return "".join(out)
 
 
 def _calendar(merged: list[dict], start: dt.date, end: dt.date) -> str:
@@ -969,7 +975,7 @@ def _calendar(merged: list[dict], start: dt.date, end: dt.date) -> str:
 
 
 def _detail_by_month(merged: list[dict], start: dt.date, end: dt.date) -> str:
-    """ตารางรายละเอียดเที่ยวเรือ แบ่งเป็นเดือน (ปุ่มเลือกเดือน + ตารางทีละเดือน)"""
+    """ตารางรายละเอียดเที่ยวเรือ: ปุ่มเลือกเดือน แล้วในแต่ละเดือนมีปุ่มกรองรายสัปดาห์"""
     months: list[dt.date] = []
     cur = dt.date(start.year, start.month, 1)
     last = dt.date(end.year, end.month, 1)
@@ -990,22 +996,47 @@ def _detail_by_month(merged: list[dict], start: dt.date, end: dt.date) -> str:
     tabs, panels = [], []
     for i, mo in enumerate(months):
         ym = f"{mo:%Y-%m}"
-        items = by_month.get(ym, [])
+        items = sorted(by_month.get(ym, []),
+                       key=lambda m: (m["etd_date"] or "", m["vessel"]))
         is_def = (i == default_idx)
         tabs.append(
             f"<button class='mtab{' active' if is_def else ''}' data-m='{ym}'>"
             f"{mo:%b %Y}<span class='cnt'>{len(items)}</span></button>")
-        body = "".join(_detail_row(m, j) for j, m in enumerate(items)) or (
+
+        # จัดกลุ่มรายสัปดาห์ (ตามวันจันทร์ของสัปดาห์ที่เรือออก)
+        m_last = dt.date(mo.year + (mo.month == 12), (mo.month % 12) + 1, 1) - dt.timedelta(days=1)
+        wk: dict[dt.date, int] = {}
+        for it in items:
+            d = dt.date.fromisoformat(it["etd_date"])
+            wk[d - dt.timedelta(days=d.weekday())] = wk.get(d - dt.timedelta(days=d.weekday()), 0) + 1
+
+        wbtns = [f"<button class='wtab active' data-w='all'>ทั้งเดือน"
+                 f"<span class='cnt'>{len(items)}</span></button>"]
+        for monday in sorted(wk):
+            a = max(monday, mo)
+            b = min(monday + dt.timedelta(days=6), m_last)
+            lbl = (f"{a.day}–{b.day} {mo:%b}" if a.month == b.month
+                   else f"{a.day} {a:%b}–{b.day} {b:%b}")
+            wbtns.append(f"<button class='wtab' data-w='{monday.isoformat()}'>{lbl}"
+                         f"<span class='cnt'>{wk[monday]}</span></button>")
+        wtabs_html = f"<div class='wtabs'>{''.join(wbtns)}</div>" if len(wbtns) > 1 else ""
+
+        body = "".join(_detail_row(m) for m in items) or (
             "<tr><td colspan='7' style='color:var(--muted)'>ไม่มีเที่ยวเรือในเดือนนี้</td></tr>")
         panels.append(
             f"<div class='detpanel' data-m='{ym}'{'' if is_def else ' hidden'}>"
-            f"<table>{head}{body}</table></div>")
+            f"{wtabs_html}<table>{head}{body}</table></div>")
 
     return (f"<div class='mtabs' data-panels='detpanel'>{''.join(tabs)}</div>"
             f"{''.join(panels)}")
 
 
-def _detail_row(m: dict, idx: int) -> str:
+def _detail_row(m: dict) -> str:
+    if m["etd_date"]:
+        d = dt.date.fromisoformat(m["etd_date"])
+        wk = (d - dt.timedelta(days=d.weekday())).isoformat()
+    else:
+        wk = ""
     badges = ""
     for c in m["carriers"]:
         col = SOURCE_META.get(c, {}).get("color", DEFAULT_COLOR)
@@ -1031,7 +1062,7 @@ def _detail_row(m: dict, idx: int) -> str:
         "<th>ETA</th><th>Transit</th><th>ท่าต้นทาง</th><th>Cut-off (Doc/CY/VGM)</th></tr>"
         + "".join(sub) + "</table></td></tr>")
     return (
-        f"<tr class='main'><td>{html.escape(m['etd_date'] or '—')}</td>"
+        f"<tr class='main' data-w='{wk}'><td>{html.escape(m['etd_date'] or '—')}</td>"
         f"<td><b>{html.escape(m['vessel'])}</b></td>"
         f"<td>{html.escape(m['etd'] or '—')}</td>"
         f"<td>{html.escape(m['eta'] or '—')}</td>"
@@ -1047,20 +1078,6 @@ def write_html(merged, records, statuses, start, end, path: Path):
     multi = sum(1 for m in merged if m["n_sources"] > 1)
     transit_all = [t for m in merged if m["transit_days"] for t in m["transit_days"]]
     avg_transit = f"{sum(transit_all) / len(transit_all):.1f}" if transit_all else "—"
-
-    per_carrier: dict[str, int] = {}
-    for m in merged:
-        for c in m["carriers"]:
-            per_carrier[c] = per_carrier.get(c, 0) + 1
-
-    week_counts: dict[tuple, int] = {}
-    for m in merged:
-        if m["etd_date"]:
-            d = dt.date.fromisoformat(m["etd_date"])
-            monday = d - dt.timedelta(days=d.weekday())
-            week_counts[(monday, d.isocalendar().week)] = week_counts.get((monday, d.isocalendar().week), 0) + 1
-    per_week = {f"W{wk:02d} ({mon:%d %b})": c
-               for (mon, wk), c in sorted(week_counts.items())}
 
     legend = "".join(
         f"<span><i class='dot' style='display:inline-block;background:{m['color']}'></i>{html.escape(m['label'])}</span>"
@@ -1089,13 +1106,7 @@ def write_html(merged, records, statuses, start, end, path: Path):
   <div class="card kpi"><div class="v">{avg_transit}</div><div class="l">Transit เฉลี่ย (วัน)</div></div>
 </div>
 
-<h2>จำนวนเที่ยวเรือ แยกตามสายเรือ</h2>
-<div class="card">{_bars(per_carrier, {k: v['color'] for k, v in SOURCE_META.items()})}</div>
-
-<h2>จำนวนเที่ยวเรือ แยกตามสัปดาห์ (ตาม ETD)</h2>
-<div class="card">{_bars(per_week, {}, keep_order=True)}</div>
-
-<h2>รายละเอียดเที่ยวเรือ (เลือกดูทีละเดือน &middot; คลิกแถวเพื่อดูรายสายเรือ)</h2>
+<h2>รายละเอียดเที่ยวเรือ (เลือกเดือน / สัปดาห์ &middot; คลิกแถวเพื่อดูรายสายเรือ)</h2>
 {_detail_by_month(merged, start, end)}
 
 <p class="foot">ข้อมูลเพื่อการอ้างอิงเบื้องต้นเท่านั้น โปรดยืนยัน schedule / cut-off กับสายเรือหรือตัวแทนอีกครั้งก่อนใช้งานจริง<br>
