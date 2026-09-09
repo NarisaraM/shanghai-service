@@ -12,10 +12,12 @@ exports/
 *.xlsx
 *.ics
 
-# ...ยกเว้นไฟล์ข้อมูลนำเข้าของ KMTC / ZIM ที่ต้องดาวน์โหลดเอง (commit ไว้ด้วย)
+# ...ยกเว้นไฟล์ข้อมูลนำเข้าที่ต้องดาวน์โหลดเอง (KMTC / ZIM / RCL / CMA CGM) — commit ไว้ด้วย
 !/KMTC/
 !/KMTC/**
 !/zim_*.xlsx
+!/RCL_*.xlsx
+!/CMA_CGM_*.xlsx
 
 # OS / editor
 .DS_Store

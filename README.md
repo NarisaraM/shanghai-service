@@ -14,20 +14,25 @@ output/                      ผลลัพธ์ที่สร้างขึ
 
 | ไฟล์ | แหล่งข้อมูล | วิธีดึง |
 |---|---|---|
-| `input/sitc_schedule.py` | SITC | public JSON API |
-| `input/tslines_schedule.py` | T.S. Lines | public JSON API |
-| `input/culines_ptp_schedule.py` | CU Lines | public JSON API |
-| `input/jj_shipping_schedule.py` | SJJ (NVOCC JJ Shipping) | เว็บ + Playwright |
-| `input/kmtc_extract_text.py` | KMTC | อ่านไฟล์ `.xls` ในโฟลเดอร์ `KMTC/` |
-| `input/extract_schedule_text.py` | ZIM | อ่านไฟล์ `zim_*.xlsx` ที่ราก repo |
+| `input/sitc_schedule.py` | SITC | public JSON API (ดึงสด) |
+| `input/tslines_schedule.py` | T.S. Lines | public JSON API (ดึงสด) |
+| `input/culines_ptp_schedule.py` | CU Lines | public JSON API (ดึงสด) |
+| `input/cosco_schedule.py` | COSCO | public JSON API (ดึงสด) |
+| `input/yml_schedule_lcb_shanghai.py` | Yang Ming (YML) | public JSON API (ดึงสด) |
+| `input/jj_shipping_schedule.py` | SJJ (NVOCC JJ Shipping) | เว็บ + Playwright (ดึงสด) |
+| `input/kmtc_extract_text.py` + `KMTC/*.xls` | KMTC | อ่านไฟล์ที่ดาวน์โหลดเอง |
+| `input/extract_schedule_text.py` + `zim_*.xlsx` | ZIM | อ่านไฟล์ที่ดาวน์โหลดเอง |
+| `input/rcl_sailing_schedule.py` → `RCL_*Schedule*.xlsx` | RCL | อ่านไฟล์ที่ดาวน์โหลดเอง |
+| `input/cma_cgm_schedule.py` → `CMA_CGM_*.xlsx` | CMA CGM | อ่านไฟล์ที่ดาวน์โหลดเอง |
 
-> **KMTC / ZIM:** เว็บสองรายนี้ใช้ Akamai กันบอต IP นอกไทยจะโดนบล็อกทั้งโดเมน
-> จึงใช้วิธี *ดาวน์โหลดไฟล์เอง*:
-> - **KMTC** — เปิด ekmtc.com → Schedule → Leg Schedule (LCH→SHA) กดปุ่ม Excel
->   ทีละเดือน วางไฟล์ `.xls` ทั้งหมดไว้ในโฟลเดอร์ `KMTC/`
->   (หรือรัน `python input/kmtc_schedule_export.py` จากเครือข่ายในไทย)
-> - **ZIM** — รัน `python input/zim_schedule_scraper.py` จากเครือข่ายในไทย แล้ววาง
->   `zim_laemchabang_shanghai_schedule.xlsx` ไว้ที่ราก repo
+> **KMTC / ZIM / RCL / CMA CGM:** เว็บ 4 รายนี้กันบอตที่ระดับ IP (Akamai / Cloudflare
+> / DataDome) — IP นอกไทยจะโดนบล็อก จึงต้อง *ดาวน์โหลดไฟล์เอง* จากเครือข่ายในไทย
+> แล้ววางไว้ที่ราก repo:
+> - **KMTC** — เปิด ekmtc.com → Leg Schedule (LCH→SHA) กด Excel ทีละเดือน วางใน `KMTC/`
+>   (หรือรัน `python input/kmtc_schedule_export.py`)
+> - **ZIM** — `python input/zim_schedule_scraper.py` → วาง `zim_*.xlsx`
+> - **RCL** — `python input/rcl_sailing_schedule.py` (เปิดหน้าต่างเบราว์เซอร์) → วาง `RCL_*Schedule*.xlsx`
+> - **CMA CGM** — `python input/cma_cgm_schedule.py` (เปิดหน้าต่างเบราว์เซอร์ อาจต้องกดยืนยันตัวตน) → วาง `CMA_CGM_*.xlsx`
 >
 > `build_shanghai_schedule.py` จะอ่านไฟล์เหล่านี้เข้ามารวมเอง ถ้าไม่มีไฟล์จะขึ้น
 > สถานะ "ถูกบล็อก" พร้อมวิธีแก้บน Dashboard

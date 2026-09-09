@@ -10,19 +10,27 @@ build_shanghai_schedule.py
 
 แหล่งข้อมูลที่รองรับ (สคริปต์ต้นฉบับอยู่ในโฟลเดอร์ input/)
 ---------------------------------------------------------
-    input/sitc_schedule.py        -> สายเรือ SITC        (public JSON API)
-    input/tslines_schedule.py     -> สายเรือ T.S. Lines  (public JSON API)
-    input/culines_ptp_schedule.py -> สายเรือ CU Lines    (public JSON API)
-    input/jj_shipping_schedule.py -> SJJ  (NVOCC JJ Shipping)  (เว็บ + Playwright)
+    ดึงสด (public JSON API):
+    input/sitc_schedule.py        -> สายเรือ SITC
+    input/tslines_schedule.py     -> สายเรือ T.S. Lines
+    input/culines_ptp_schedule.py -> สายเรือ CU Lines
+    input/cosco_schedule.py       -> สายเรือ COSCO
+    input/yml_schedule_lcb_shanghai.py -> สายเรือ Yang Ming (YML)
 
-    KMTC   -> อ่านจากไฟล์ .xls รายเดือนในโฟลเดอร์  KMTC/
-    ZIM    -> อ่านจากไฟล์  zim_*.xlsx  ที่รากโปรเจกต์
+    ดึงสด (เว็บ + Playwright):
+    input/jj_shipping_schedule.py -> SJJ  (NVOCC JJ Shipping)
 
-หมายเหตุ: เว็บ KMTC (ekmtc.com) และ ZIM (zim.com) ใช้ Akamai กันบอต — IP นอกไทย
-จะโดนบล็อกทั้งโดเมน จึงใช้วิธี "ดาวน์โหลดไฟล์เอง" แทน: เปิดหน้า schedule ของ
-สองสายนี้จากเครือข่ายในไทย กด export Excel แล้ววางไฟล์ไว้ตามที่ระบุข้างบน
-(KMTC: 1 ไฟล์ต่อเดือน วางในโฟลเดอร์ KMTC/ ;  ZIM: ผลจาก input/zim_schedule_scraper.py)
-ถ้าไม่มีไฟล์ Dashboard จะขึ้นสถานะ "ถูกบล็อก" พร้อมวิธีแก้
+    อ่านจากไฟล์ที่ดาวน์โหลดเอง (เว็บบล็อก IP นอกไทย):
+    KMTC     -> ไฟล์ .xls รายเดือนในโฟลเดอร์  KMTC/
+    ZIM      -> ไฟล์  zim_*.xlsx           ที่รากโปรเจกต์
+    RCL      -> ไฟล์  RCL_*Schedule*.xlsx  ที่รากโปรเจกต์
+    CMA CGM  -> ไฟล์  CMA_CGM_*.xlsx       ที่รากโปรเจกต์
+
+หมายเหตุ: KMTC/ZIM ใช้ Akamai, RCL ใช้ Cloudflare, CMA CGM ใช้ DataDome กันบอต —
+IP นอกไทยจะโดนบล็อก จึงใช้วิธี "ดาวน์โหลดไฟล์เอง": รันสคริปต์ input/*.py ของสายนั้น
+จากเครือข่ายในไทย (RCL/CMA CGM ต้องเปิดหน้าต่างเบราว์เซอร์ อาจต้องกดยืนยันตัวตน)
+แล้ววางไฟล์ผลลัพธ์ไว้ตามที่ระบุข้างบน ถ้าไม่มีไฟล์ Dashboard จะขึ้นสถานะ "ถูกบล็อก"
+พร้อมวิธีแก้
 
 การทำงาน
 --------
@@ -77,6 +85,10 @@ SOURCE_META = {
     "KMTC":        {"color": "#db2777", "label": "KMTC"},
     "ZIM":         {"color": "#f59e0b", "label": "ZIM"},
     "CU Lines":    {"color": "#0891b2", "label": "CU Lines"},
+    "COSCO":       {"color": "#0f766e", "label": "COSCO"},
+    "Yang Ming":   {"color": "#65a30d", "label": "Yang Ming (YML)"},
+    "RCL":         {"color": "#e11d48", "label": "RCL"},
+    "CMA CGM":     {"color": "#475569", "label": "CMA CGM"},
     "SJJ":         {"color": "#7c3aed", "label": "SJJ"},
 }
 DEFAULT_COLOR = "#64748b"
@@ -122,6 +134,8 @@ def parse_dt(value) -> tuple[str | None, dt.date | None]:
     s = s.replace("T", " ")
     # ISO offset เช่น +03:00 ท้ายสุด
     s = re.sub(r"([+\-]\d{2}:?\d{2})$", "", s).strip()
+    # ตัดชื่อวันขึ้นต้น เช่น 'Monday, 14-SEP-2026' (รูปแบบของ CMA CGM)
+    s = re.sub(r"^[A-Za-z]{3,},\s*", "", s).strip()
 
     # 1) YYYY-MM-DD หรือ YYYY/MM/DD (อาจมีเวลา)
     m = re.match(r"(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ ](\d{1,2}):(\d{2}))?", s)
@@ -147,7 +161,19 @@ def parse_dt(value) -> tuple[str | None, dt.date | None]:
             return f"{date.isoformat()} {int(m.group(4)):02d}:{m.group(5)}", date
         return date.isoformat(), date
 
-    # 2) DD-Month-YYYY
+    # 1c) DD/MM/YYYY  (รูปแบบของ RCL)
+    m = re.match(r"(\d{1,2})/(\d{1,2})/(\d{4})(?:[ ](\d{1,2}):(\d{2}))?", s)
+    if m:
+        d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            date = dt.date(y, mo, d)
+        except ValueError:
+            return s, None
+        if m.group(4) is not None:
+            return f"{date.isoformat()} {int(m.group(4)):02d}:{m.group(5)}", date
+        return date.isoformat(), date
+
+    # 2) DD-Month-YYYY  /  DD-SEP-2026
     m = re.match(r"(\d{1,2})[-\s]([A-Za-z]+)[-\s](\d{4})", s)
     if m and m.group(2).lower() in MONTHS:
         d, mo, y = int(m.group(1)), MONTHS[m.group(2).lower()], int(m.group(3))
@@ -332,6 +358,10 @@ def _name_voy(text):
 # --------------------------------------------------------------------------- #
 KMTC_DIR = HERE / "KMTC"
 ZIM_GLOBS = ("zim_*.xlsx", "zim_*.xls", "input/zim_*.xlsx", "exports/zim_*.xlsx")
+RCL_GLOBS = ("RCL_*[Ss]chedule*.xlsx", "RCL_*.xlsx", "rcl_*.xlsx",
+             "input/RCL_*.xlsx", "exports/RCL_*.xlsx")
+CMA_GLOBS = ("CMA_CGM_*.xlsx", "CMA*CGM*.xlsx", "cma_cgm_*.xlsx",
+             "input/CMA_CGM_*.xlsx", "exports/CMA_CGM_*.xlsx")
 
 
 def fetch_kmtc(start: dt.date, end: dt.date) -> list[dict]:
@@ -386,24 +416,17 @@ def fetch_kmtc(start: dt.date, end: dt.date) -> list[dict]:
     return out
 
 
-def _find_zim_file() -> "Path | None":
-    for pat in ZIM_GLOBS:
+def _first_file(globs) -> "Path | None":
+    for pat in globs:
         hits = sorted(HERE.glob(pat))
         if hits:
             return hits[-1]
     return None
 
 
-def fetch_zim(start: dt.date, end: dt.date) -> list[dict]:
+def _xlsx_rows(path: "Path") -> list[dict]:
+    """อ่านชีตแรกของ .xlsx เป็น list[dict] โดยใช้แถวแรกเป็นหัวคอลัมน์"""
     import openpyxl
-
-    path = _find_zim_file()
-    if path is None:
-        raise SourceBlocked(
-            "ไม่พบไฟล์ zim_*.xlsx — เว็บ ZIM บล็อก IP นอกไทย ให้รัน "
-            "`python input/zim_schedule_scraper.py` จากเครือข่ายในไทย "
-            "แล้ววางไฟล์ผลลัพธ์ (เช่น zim_laemchabang_shanghai_schedule.xlsx) ไว้ที่ราก repo")
-
     wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
     ws = wb.active
     rows = list(ws.iter_rows(values_only=True))
@@ -411,27 +434,145 @@ def fetch_zim(start: dt.date, end: dt.date) -> list[dict]:
     if not rows:
         return []
     header = [str(c or "").strip() for c in rows[0]]
-    idx = {name: i for i, name in enumerate(header)}
-
-    def cell(row, name):
-        i = idx.get(name)
-        return row[i] if i is not None and i < len(row) else None
-
     out = []
     for row in rows[1:]:
-        if not any(row):
+        if not any(c is not None and str(c).strip() for c in row):
             continue
-        _, etd_d = parse_dt(cell(row, "Departure"))
+        out.append({header[i]: row[i] for i in range(min(len(header), len(row)))})
+    return out
+
+
+def fetch_zim(start: dt.date, end: dt.date) -> list[dict]:
+    path = _first_file(ZIM_GLOBS)
+    if path is None:
+        raise SourceBlocked(
+            "ไม่พบไฟล์ zim_*.xlsx — เว็บ ZIM บล็อก IP นอกไทย ให้รัน "
+            "`python input/zim_schedule_scraper.py` จากเครือข่ายในไทย "
+            "แล้ววางไฟล์ผลลัพธ์ (เช่น zim_laemchabang_shanghai_schedule.xlsx) ไว้ที่ราก repo")
+
+    out = []
+    for r in _xlsx_rows(path):
+        _, etd_d = parse_dt(r.get("Departure"))
         if etd_d is None or not (start <= etd_d <= end):
             continue
         out.append(_rec(
             "ZIM", carrier="ZIM",
-            service=clean(cell(row, "Vessel Code")),
-            vessel=cell(row, "Vessel Name"), voyage=cell(row, "Voyage"),
+            service=clean(r.get("Vessel Code")),
+            vessel=r.get("Vessel Name"), voyage=r.get("Voyage"),
             pol="LAEM CHABANG", pod="SHANGHAI",
-            etd=cell(row, "Departure"), eta=cell(row, "Arrival"),
-            transit_days=cell(row, "Transit Time (Days)"),
-            direct_or_ts=clean(cell(row, "Transit Type")) or "Direct",
+            etd=r.get("Departure"), eta=r.get("Arrival"),
+            transit_days=r.get("Transit Time (Days)"),
+            direct_or_ts=clean(r.get("Transit Type")) or "Direct",
+        ))
+    return out
+
+
+def fetch_cosco(start: dt.date, end: dt.date) -> list[dict]:
+    import cosco_schedule as m
+    import requests
+    session = requests.Session()
+    try:
+        origin = http_retry(lambda: m.find_city(session, "Laem Chabang"))
+        dest = http_retry(lambda: m.find_city(session, "Shanghai"))
+        records = http_retry(lambda: m.fetch_schedule(session, origin, dest, start, end))
+    except SystemExit as exc:  # find_city/fetch_schedule ยก SystemExit เมื่อไม่พบเมือง/มี error
+        raise RuntimeError(f"COSCO: {exc}") from exc
+
+    out, seen = [], set()
+    for r in m.to_rows(records):
+        svc, _, voy = str(r.get("Service/Voyage") or "").partition("/")
+        _, d = parse_dt(r.get("ETD"))
+        if d is None or not (start <= d <= end):
+            continue
+        key = (norm_vessel(r.get("Vessel")), voy.strip(), d.isoformat())
+        if key in seen:       # COSCO ส่งหลายแถวต่อเที่ยว (แยกตามชนิดสินค้า/haulage)
+            continue
+        seen.add(key)
+        out.append(_rec(
+            "COSCO", carrier="COSCO",
+            service=svc.strip() or None,
+            vessel=r.get("Vessel"), voyage=voy.strip() or None,
+            pol=r.get("POL") or "LAEM CHABANG", pod=r.get("POD") or "SHANGHAI",
+            etd=r.get("ETD"), eta=r.get("ETA"),
+            transit_days=r.get("Transit (days)"),
+            cy_cutoff=r.get("Cut Off"),
+        ))
+    return out
+
+
+def fetch_yml(start: dt.date, end: dt.date) -> list[dict]:
+    import yml_schedule_lcb_shanghai as m
+    search_start = max(start, dt.date.today())   # YML API ปฏิเสธ startDate ที่เป็นอดีต (HTTP 400)
+    if search_start > end:
+        return []
+    rows = m.fetch_schedule("THLCB", "CNSHA", search_start, end)
+    out = []
+    for r in rows:
+        _, d = parse_dt(r.get("masterETD"))
+        if d is None or not (start <= d <= end):
+            continue
+        ts = str(r.get("transshipment") or "").strip()
+        out.append(_rec(
+            "Yang Ming", carrier="Yang Ming",
+            service=clean(r.get("masterVoyageCode")),
+            vessel=r.get("masterVesselName"),
+            voyage=r.get("masterComnVoyage") or r.get("masterVoyageCode"),
+            pol=r.get("placeOfReceipt") or "LAEM CHABANG",
+            pod=r.get("placeOfDelivery") or "SHANGHAI",
+            etd=r.get("masterETD"), eta=r.get("masterETA"),
+            transit_days=r.get("transitDays"),
+            direct_or_ts="T/S" if ts and ts.upper() not in {"N", "NO", "DIRECT", "0"} else "Direct",
+            cy_cutoff=r.get("cutoffCY"), vgm_cutoff=r.get("cutoffVGM"),
+        ))
+    return out
+
+
+def fetch_rcl(start: dt.date, end: dt.date) -> list[dict]:
+    path = _first_file(RCL_GLOBS)
+    if path is None:
+        raise SourceBlocked(
+            "ไม่พบไฟล์ RCL_Schedule_*.xlsx — เว็บ RCL มี Cloudflare กันบอต ให้รัน "
+            "`python input/rcl_sailing_schedule.py` (เปิดหน้าต่างเบราว์เซอร์) จากเครือข่ายในไทย "
+            "แล้ววางไฟล์ผลลัพธ์ไว้ที่ราก repo")
+    out = []
+    for r in _xlsx_rows(path):
+        etd_raw = r.get("Loading Port Departure") or r.get("Sailing Date (Loading Port Arrival)")
+        _, d = parse_dt(etd_raw)
+        if d is None or not (start <= d <= end):
+            continue
+        name, voy = _name_voy(r.get("Vessel"))
+        out.append(_rec(
+            "RCL", carrier="RCL",
+            vessel=name or r.get("Vessel"), voyage=r.get("Voyage No") or voy,
+            pol=r.get("POL") or "LAEM CHABANG", pod=r.get("POD") or "SHANGHAI",
+            etd=etd_raw, eta=r.get("Destination Arrival"),
+            transit_days=r.get("Transit Time"),
+        ))
+    return out
+
+
+def fetch_cma(start: dt.date, end: dt.date) -> list[dict]:
+    path = _first_file(CMA_GLOBS)
+    if path is None:
+        raise SourceBlocked(
+            "ไม่พบไฟล์ CMA_CGM_Schedule_*.xlsx — เว็บ CMA CGM มี DataDome กันบอต ให้รัน "
+            "`python input/cma_cgm_schedule.py` (เปิดหน้าต่างเบราว์เซอร์ อาจต้องกดยืนยันตัวตน) "
+            "จากเครือข่ายในไทย แล้ววางไฟล์ผลลัพธ์ไว้ที่ราก repo")
+    out = []
+    for r in _xlsx_rows(path):
+        _, d = parse_dt(r.get("departure_date"))
+        if d is None or not (start <= d <= end):
+            continue
+        routing = str(r.get("routing") or "").lower()
+        out.append(_rec(
+            "CMA CGM", carrier="CMA CGM",
+            vessel=r.get("vessel"), voyage=r.get("voyage_ref"),
+            pol=r.get("pol") or "LAEM CHABANG", pod=r.get("pod") or "SHANGHAI",
+            pol_terminal=clean(r.get("pol_terminal")), pod_terminal=clean(r.get("pod_terminal")),
+            etd=r.get("departure_date"), eta=r.get("arrival_date"),
+            transit_days=r.get("transit_time"),
+            direct_or_ts="Direct" if "direct" in routing else ("T/S" if routing else "Direct"),
+            cy_cutoff=r.get("port_cutoff"),
         ))
     return out
 
@@ -468,6 +609,10 @@ SOURCES = {
     "kmtc":    ("KMTC",        fetch_kmtc),
     "zim":     ("ZIM",         fetch_zim),
     "culines": ("CU Lines",    fetch_culines),
+    "cosco":   ("COSCO",       fetch_cosco),
+    "yml":     ("Yang Ming",   fetch_yml),
+    "rcl":     ("RCL",         fetch_rcl),
+    "cmacgm":  ("CMA CGM",     fetch_cma),
     "sjj":     ("SJJ",         fetch_jj),
 }
 
