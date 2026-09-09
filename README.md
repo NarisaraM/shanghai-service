@@ -2,12 +2,17 @@
 
 เครื่องมือดึงและรวมตารางการเดินเรือเส้นทาง **Laem Chabang → Shanghai** จากหลายสายเรือ
 
+**เว็บ (GitHub Pages):** <https://narisaram.github.io/shanghai-service/>
+
 ## โครงสร้างโปรเจกต์
 
 ```
 build_shanghai_schedule.py   ตัวรวมข้อมูล + สร้าง Dashboard
 input/                       สคริปต์ scraper ต้นฉบับรายสายเรือ
 output/                      ผลลัพธ์ที่สร้างขึ้น (ไม่ commit เข้า git)
+docs/                        หน้าเว็บที่ GitHub Pages เผยแพร่
+  index.html                 หน้า "Schedule Service" รวมลิงก์บริการ
+  laem-chabang-shanghai/     Dashboard ของเส้นทางนี้ (สร้างใหม่ทุกครั้งที่รันสคริปต์)
 ```
 
 ## สคริปต์ดึงข้อมูลรายสายเรือ (`input/`)
@@ -65,3 +70,13 @@ python build_shanghai_schedule.py --offline      # ใช้ข้อมูล�
 pip install -r requirements.txt
 playwright install chromium
 ```
+
+## GitHub Pages
+
+เว็บเผยแพร่จาก branch `main` โฟลเดอร์ `/docs`
+
+- **อัปเดต Dashboard** — รัน `python build_shanghai_schedule.py` (เขียนทับ
+  `docs/laem-chabang-shanghai/index.html` ให้เอง) แล้ว commit + push `docs/`
+- **เพิ่มบริการใหม่** — สร้างโฟลเดอร์ `docs/<ชื่อบริการ>/` พร้อม `index.html`
+  ข้างใน แล้วเพิ่ม `<li>` ในรายการของ `docs/index.html` (มีคอมเมนต์บอกวิธีไว้)
+  โดยตั้งชื่อลิงก์เป็นชื่อ Service นั้น ๆ
