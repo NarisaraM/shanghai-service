@@ -370,6 +370,8 @@ KMTC_DIR = HERE / "KMTC"
 ZIM_GLOBS = ("zim_*.xlsx", "zim_*.xls", "input/zim_*.xlsx", "exports/zim_*.xlsx")
 HAL_GLOBS = ("HAL Schedule*.xls*", "HAL_Schedule*.xls*", "hal_schedule*.xls*",
              "downloads/HAL*.xls*", "input/HAL*.xls*", "exports/HAL*.xls*")
+# service ของ HAL ที่ให้ตัดออก (เรือไม่ได้วิ่งเส้นนี้จริง)
+HAL_SKIP_SERVICES = {"CHT", "BTS"}
 
 
 def fetch_kmtc(start: dt.date, end: dt.date) -> list[dict]:
@@ -484,8 +486,8 @@ def fetch_hal(start: dt.date, end: dt.date) -> list[dict]:
             # ตัดเที่ยวที่ปิดรับจองแล้ว (Booking = "Closed")
             if str(r.get("Booking") or "").strip().lower().startswith("close"):
                 continue
-            # ตัด service CHT ออก (เรือไม่ได้วิ่งเส้นนี้จริง)
-            if str(r.get("Service") or "").strip().upper() == "CHT":
+            # ตัด service ที่อยู่ในบัญชีข้าม (เรือไม่ได้วิ่งเส้นนี้จริง)
+            if str(r.get("Service") or "").strip().upper() in HAL_SKIP_SERVICES:
                 continue
             vv = str(r.get("Vessel/Voyage") or "").replace("\r", "\n")
             if "\n" in vv:
