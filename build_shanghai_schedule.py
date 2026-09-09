@@ -481,8 +481,11 @@ def fetch_hal(start: dt.date, end: dt.date) -> list[dict]:
     out, seen = [], set()
     for path in files:
         for r in _xlsx_rows(path):
-            # ตัดเที่ยวที่ปิดรับจองแล้ว (คอลัมน์ Booking = "Closed")
+            # ตัดเที่ยวที่ปิดรับจองแล้ว (Booking = "Closed")
             if str(r.get("Booking") or "").strip().lower().startswith("close"):
+                continue
+            # ตัด service CHT ออก (เรือไม่ได้วิ่งเส้นนี้จริง)
+            if str(r.get("Service") or "").strip().upper() == "CHT":
                 continue
             vv = str(r.get("Vessel/Voyage") or "").replace("\r", "\n")
             if "\n" in vv:
