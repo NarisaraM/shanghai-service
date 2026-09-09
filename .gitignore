@@ -12,10 +12,12 @@ exports/
 *.xlsx
 *.ics
 
-# ...ยกเว้นไฟล์ข้อมูลนำเข้าที่ต้องดาวน์โหลดเอง (KMTC / ZIM) — commit ไว้ด้วย
+# ...ยกเว้นไฟล์ข้อมูลนำเข้าที่ต้องดาวน์โหลดเอง (KMTC / ZIM / HAL) — commit ไว้ด้วย
 !/KMTC/
 !/KMTC/**
 !/zim_*.xlsx
+!/HAL Schedule*.xlsx
+!/HAL_Schedule*.xlsx
 
 # OS / editor
 .DS_Store
