@@ -78,17 +78,29 @@ LANE = "Laem Chabang, Thailand  \u2192  Shanghai, China"
 
 # สี/ลำดับ ของแต่ละแหล่งข้อมูล (ใช้บน Dashboard + ปฏิทิน)
 SOURCE_META = {
-    "SITC":        {"color": "#2563eb", "label": "SITC"},
-    "T.S. Lines":  {"color": "#16a34a", "label": "T.S. Lines"},
-    "KMTC":        {"color": "#db2777", "label": "KMTC"},
-    "HAL":         {"color": "#475569", "label": "HAL (Heung-A)"},
-    "ZIM":         {"color": "#f59e0b", "label": "ZIM"},
-    "CU Lines":    {"color": "#0891b2", "label": "CU Lines"},
-    "COSCO":       {"color": "#0f766e", "label": "COSCO"},
-    "Yang Ming":   {"color": "#65a30d", "label": "Yang Ming (YML)"},
-    "SJJ":         {"color": "#7c3aed", "label": "SJJ"},
+    "SITC":        {"color": "#f97316", "label": "SITC"},          # ส้ม
+    "T.S. Lines":  {"color": "#ec4899", "label": "T.S. Lines"},    # ชมพู
+    "KMTC":        {"color": "#38bdf8", "label": "KMTC"},          # ฟ้า
+    "HAL":         {"color": "#2563eb", "label": "HAL (Heung-A)"}, # น้ำเงิน
+    "ZIM":         {"color": "#6b7280", "label": "ZIM"},           # เทา
+    "CU Lines":    {"color": "#14b8a6", "label": "CU Lines"},      # เขียวอมฟ้า
+    "COSCO":       {"color": "#facc15", "label": "COSCO"},         # เหลือง
+    "Yang Ming":   {"color": "#dc2626", "label": "Yang Ming (YML)"}, # แดง
+    "SJJ":         {"color": "#7c3aed", "label": "SJJ"},           # ม่วง
 }
 DEFAULT_COLOR = "#64748b"
+
+
+def _fg(hex_color: str) -> str:
+    """เลือกสีตัวอักษร (ขาว/ดำ) ให้อ่านออกเมื่อวางบนพื้นสี hex_color"""
+    h = (hex_color or "").lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    try:
+        r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+    except ValueError:
+        return "#fff"
+    return "#1a1a1a" if (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 else "#fff"
 
 
 # --------------------------------------------------------------------------- #
@@ -469,6 +481,9 @@ def fetch_hal(start: dt.date, end: dt.date) -> list[dict]:
     out, seen = [], set()
     for path in files:
         for r in _xlsx_rows(path):
+            # ตัดเที่ยวที่ปิดรับจองแล้ว (คอลัมน์ Booking = "Closed")
+            if str(r.get("Booking") or "").strip().lower().startswith("close"):
+                continue
             vv = str(r.get("Vessel/Voyage") or "").replace("\r", "\n")
             if "\n" in vv:
                 vessel, _, voyage = vv.partition("\n")
@@ -814,9 +829,6 @@ h2{font-size:16px;margin:28px 0 12px;padding-bottom:6px;border-bottom:2px solid 
 .kpi .v{font-size:26px;font-weight:700}
 .kpi .l{color:var(--muted);font-size:12px;margin-top:2px}
 .dot{width:11px;height:11px;border-radius:50%;flex:none}
-.srcchips{display:flex;flex-wrap:wrap;gap:9px 18px;margin:2px 0 6px}
-.srcchip{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600}
-.srcchip.off{opacity:.38;font-weight:500}
 .bar{display:flex;align-items:center;gap:8px;margin:6px 0}
 .bar .lab{width:150px;font-size:12px;color:var(--muted);text-align:right;flex:none}
 .bar .track{flex:1;background:#eef2f7;border-radius:6px;overflow:hidden}
@@ -830,7 +842,7 @@ tr.main{cursor:pointer}
 tr.main:hover{background:#f8fafc}
 tr.details{display:none;background:#fbfcfe}
 tr.details.show{display:table-row}
-.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;margin:1px 2px}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;margin:1px 2px}
 .pill{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;background:#eef2f7;color:#334155;margin-right:4px}
 .tag-direct{background:#dcfce7;color:#166534}.tag-ts{background:#fef9c3;color:#854d0e}
 .mtabs{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}
@@ -848,7 +860,7 @@ tr.details.show{display:table-row}
 .cal .cell.dim{background:#f1f5f9}
 .cal .d{font-size:11px;color:var(--muted);font-weight:600}
 .cal .ev{font-size:10px;line-height:1.25;margin-top:2px;padding:1px 3px;border-radius:4px;
-         color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+         white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .legend{display:flex;flex-wrap:wrap;gap:12px;margin:6px 0 14px}
 .legend span{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px}
 .foot{color:var(--muted);font-size:12px;margin-top:30px;text-align:center}
@@ -935,7 +947,7 @@ def _calendar(merged: list[dict], start: dt.date, end: dt.date) -> str:
             iso = dt.date(mo.year, mo.month, day).isoformat()
             evs = by_day.get(iso, [])
             ev_html = "".join(
-                f"<div class='ev' style='background:{carrier_color(e)}' "
+                f"<div class='ev' style='background:{carrier_color(e)};color:{_fg(carrier_color(e))}' "
                 f"title='{html.escape(e['vessel'])} — {html.escape(', '.join(e['carriers']))} "
                 f"| ETD {html.escape(e['etd'] or iso)}'>"
                 f"{html.escape(e['vessel'][:18])}</div>"
@@ -988,9 +1000,11 @@ def _detail_by_month(merged: list[dict], start: dt.date, end: dt.date) -> str:
 
 
 def _detail_row(m: dict, idx: int) -> str:
-    badges = "".join(
-        f"<span class='badge' style='background:{SOURCE_META.get(c,{}).get('color',DEFAULT_COLOR)}'>"
-        f"{html.escape(c)}</span>" for c in m["carriers"])
+    badges = ""
+    for c in m["carriers"]:
+        col = SOURCE_META.get(c, {}).get("color", DEFAULT_COLOR)
+        badges += (f"<span class='badge' style='background:{col};color:{_fg(col)}'>"
+                   f"{html.escape(c)}</span>")
     tag = "tag-direct" if m["direct_or_ts"] == "Direct" else "tag-ts"
     sub = []
     for o in m["offers"]:
@@ -1042,17 +1056,6 @@ def write_html(merged, records, statuses, start, end, path: Path):
     per_week = {f"W{wk:02d} ({mon:%d %b})": c
                for (mon, wk), c in sorted(week_counts.items())}
 
-    # สถานะแหล่งข้อมูล: แสดงแค่จุดสี + ชื่อ (แหล่งที่ไม่มีข้อมูลจะจาง + มี tooltip)
-    src_chips = []
-    for st in statuses:
-        col = SOURCE_META.get(st["Source"], {}).get("color", DEFAULT_COLOR)
-        name = SOURCE_META.get(st["Source"], {}).get("label", st["Source"])
-        off = "" if st["Status"] == "ok" else " off"
-        tip = html.escape(st.get("Detail") or st["Status"])
-        src_chips.append(
-            f"<span class='srcchip{off}' title='{tip}'>"
-            f"<i class='dot' style='background:{col}'></i>{html.escape(str(name))}</span>")
-
     legend = "".join(
         f"<span><i class='dot' style='display:inline-block;background:{m['color']}'></i>{html.escape(m['label'])}</span>"
         for m in SOURCE_META.values())
@@ -1064,10 +1067,7 @@ def write_html(merged, records, statuses, start, end, path: Path):
 <h1>&#128674; ตารางการเดินเรือ &mdash; {html.escape(LANE)}</h1>
 <p class="sub">ช่วงข้อมูล {start:%d %b %Y} &ndash; {end:%d %b %Y}
 &nbsp;|&nbsp; สร้างเมื่อ {dt.datetime.now():%Y-%m-%d %H:%M}
-&nbsp;|&nbsp; รวมข้อมูลจาก {sum(1 for s in statuses if s['Status']=='ok')}/{len(statuses)} แหล่ง</p>
-
-<h2>สถานะแหล่งข้อมูล</h2>
-<div class="srcchips">{''.join(src_chips)}</div>
+&nbsp;|&nbsp; รวมข้อมูลจาก {sum(1 for s in statuses if s['Status']=='ok')}/{len(statuses)} สายเรือ</p>
 
 <h2>ปฏิทินตารางเรือ (ตามวัน ETD)</h2>
 <div class="legend">{legend}</div>
