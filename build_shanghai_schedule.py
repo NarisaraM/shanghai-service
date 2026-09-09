@@ -13,7 +13,7 @@ build_shanghai_schedule.py
     input/sitc_schedule.py        -> สายเรือ SITC        (public JSON API)
     input/tslines_schedule.py     -> สายเรือ T.S. Lines  (public JSON API)
     input/culines_ptp_schedule.py -> สายเรือ CU Lines    (public JSON API)
-    input/jj_shipping_schedule.py -> NVOCC JJ Shipping   (เว็บ + Playwright)
+    input/jj_shipping_schedule.py -> SJJ  (NVOCC JJ Shipping)  (เว็บ + Playwright)
 
     KMTC   -> อ่านจากไฟล์ .xls รายเดือนในโฟลเดอร์  KMTC/
     ZIM    -> อ่านจากไฟล์  zim_*.xlsx  ที่รากโปรเจกต์
@@ -48,7 +48,7 @@ build_shanghai_schedule.py
     python build_shanghai_schedule.py
     python build_shanghai_schedule.py --start 2026-09-01 --end 2026-12-31
     python build_shanghai_schedule.py --only sitc,tslines
-    python build_shanghai_schedule.py --skip jj
+    python build_shanghai_schedule.py --skip sjj
     python build_shanghai_schedule.py --offline     # ไม่ยิงเน็ต ใช้ข้อมูลจาก _cache.json
 """
 
@@ -77,7 +77,7 @@ SOURCE_META = {
     "KMTC":        {"color": "#db2777", "label": "KMTC"},
     "ZIM":         {"color": "#f59e0b", "label": "ZIM"},
     "CU Lines":    {"color": "#0891b2", "label": "CU Lines"},
-    "JJ Shipping": {"color": "#7c3aed", "label": "JJ Shipping (NVOCC)"},
+    "SJJ":         {"color": "#7c3aed", "label": "SJJ"},
 }
 DEFAULT_COLOR = "#64748b"
 
@@ -157,7 +157,7 @@ def parse_dt(value) -> tuple[str | None, dt.date | None]:
         except ValueError:
             return s, None
 
-    # 3) [Ddd] DD Month YYYY  (รูปแบบของ JJ Shipping)
+    # 3) [Ddd] DD Month YYYY  (รูปแบบของ SJJ / JJ Shipping)
     m = re.search(r"(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})", s)
     if m and m.group(2).lower() in MONTHS:
         d, mo, y = int(m.group(1)), MONTHS[m.group(2).lower()], int(m.group(3))
@@ -303,7 +303,7 @@ def fetch_jj(start: dt.date, end: dt.date) -> list[dict]:
         return out
     for _, r in df.iterrows():
         out.append(_rec(
-            "JJ Shipping", carrier="JJ Shipping",
+            "SJJ", carrier="SJJ",
             service=r.get("tcf_code"),
             vessel=r.get("vessel"), voyage=r.get("voyage"),
             pol=r.get("departure_port") or "Laem Chabang",
@@ -468,7 +468,7 @@ SOURCES = {
     "kmtc":    ("KMTC",        fetch_kmtc),
     "zim":     ("ZIM",         fetch_zim),
     "culines": ("CU Lines",    fetch_culines),
-    "jj":      ("JJ Shipping", fetch_jj),
+    "sjj":     ("SJJ",         fetch_jj),
 }
 
 
@@ -931,7 +931,7 @@ def main():
     ap.add_argument("--end", default=dt.date(today.year, 12, 31).isoformat(),
                     help="วันสิ้นสุด YYYY-MM-DD (ค่าเริ่มต้น: 31 ธ.ค. ปีปัจจุบัน)")
     ap.add_argument("--only", default="", help="ใช้เฉพาะบางแหล่ง เช่น --only sitc,tslines")
-    ap.add_argument("--skip", default="", help="ข้ามบางแหล่ง เช่น --skip jj,zim")
+    ap.add_argument("--skip", default="", help="ข้ามบางแหล่ง เช่น --skip sjj,zim")
     ap.add_argument("--offline", action="store_true",
                     help="ไม่ยิงเน็ต ใช้ข้อมูลจาก output/_cache.json ที่เคยรันไว้")
     args = ap.parse_args()

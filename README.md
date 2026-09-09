@@ -17,7 +17,7 @@ output/                      ผลลัพธ์ที่สร้างขึ
 | `input/sitc_schedule.py` | SITC | public JSON API |
 | `input/tslines_schedule.py` | T.S. Lines | public JSON API |
 | `input/culines_ptp_schedule.py` | CU Lines | public JSON API |
-| `input/jj_shipping_schedule.py` | JJ Shipping (NVOCC) | เว็บ + Playwright |
+| `input/jj_shipping_schedule.py` | SJJ (NVOCC JJ Shipping) | เว็บ + Playwright |
 | `input/kmtc_extract_text.py` | KMTC | อ่านไฟล์ `.xls` ในโฟลเดอร์ `KMTC/` |
 | `input/extract_schedule_text.py` | ZIM | อ่านไฟล์ `zim_*.xlsx` ที่ราก repo |
 
