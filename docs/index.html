@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Schedule Service</title>
+<style>
+  :root{
+    --bg:#f6f7f9;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--accent:#0ea5e9;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans Thai",sans-serif;
+    font-size:15px;line-height:1.5;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:48px 24px 64px}
+  h1{font-size:26px;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+  .sub{color:var(--muted);margin:0 0 32px}
+  h2{font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
+     margin:0 0 14px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+  ul.services{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+  ul.services a{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:18px 20px;text-decoration:none;color:var(--ink);
+    transition:border-color .15s,transform .15s;
+  }
+  ul.services a:hover{border-color:var(--accent);transform:translateY(-1px)}
+  ul.services .name{font-weight:700;font-size:16px}
+  ul.services .desc{color:var(--muted);font-size:13px;margin-top:2px}
+  ul.services .arrow{color:var(--accent);font-size:20px;flex:none}
+  .foot{color:var(--muted);font-size:12px;margin-top:40px}
+  .foot a{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>&#128674; Schedule Service</h1>
+  <p class="sub">รวมลิงก์บริการตารางเรือ (sailing schedule) แต่ละเส้นทาง</p>
+
+  <h2>Schedule Service</h2>
+
+  <!--
+    วิธีเพิ่มบริการใหม่ในอนาคต: ก๊อป <li> หนึ่งอันด้านล่าง
+      - href  = ชื่อโฟลเดอร์ของบริการนั้นใน docs/ (ต้องมี index.html ข้างใน)
+      - .name = ชื่อ Service ที่จะให้แสดงเป็นลิงก์
+  -->
+  <ul class="services">
+    <li>
+      <a href="laem-chabang-shanghai/">
+        <span>
+          <span class="name">Laem Chabang &rarr; Shanghai</span>
+          <span class="desc">ตารางเรือรวมทุกสายเรือ + ปฏิทิน + Dashboard</span>
+        </span>
+        <span class="arrow">&rarr;</span>
+      </a>
+    </li>
+  </ul>
+
+  <p class="foot">
+    สร้างจาก <a href="https://github.com/NarisaraM/shanghai-service">NarisaraM/shanghai-service</a>
+  </p>
+
+</div>
+</body>
+</html>

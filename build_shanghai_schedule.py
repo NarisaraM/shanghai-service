@@ -10,19 +10,25 @@ build_shanghai_schedule.py
 
 แหล่งข้อมูลที่รองรับ (สคริปต์ต้นฉบับอยู่ในโฟลเดอร์ input/)
 ---------------------------------------------------------
-    input/sitc_schedule.py        -> สายเรือ SITC        (public JSON API)
-    input/tslines_schedule.py     -> สายเรือ T.S. Lines  (public JSON API)
-    input/culines_ptp_schedule.py -> สายเรือ CU Lines    (public JSON API)
-    input/jj_shipping_schedule.py -> SJJ  (NVOCC JJ Shipping)  (เว็บ + Playwright)
+    ดึงสด (public JSON API):
+    input/sitc_schedule.py        -> สายเรือ SITC
+    input/tslines_schedule.py     -> สายเรือ T.S. Lines
+    input/culines_ptp_schedule.py -> สายเรือ CU Lines
+    input/cosco_schedule.py       -> สายเรือ COSCO
+    input/yml_schedule_lcb_shanghai.py -> สายเรือ Yang Ming (YML)
 
-    KMTC   -> อ่านจากไฟล์ .xls รายเดือนในโฟลเดอร์  KMTC/
-    ZIM    -> อ่านจากไฟล์  zim_*.xlsx  ที่รากโปรเจกต์
+    ดึงสด (เว็บ + Playwright):
+    input/jj_shipping_schedule.py -> SJJ  (NVOCC JJ Shipping)
 
-หมายเหตุ: เว็บ KMTC (ekmtc.com) และ ZIM (zim.com) ใช้ Akamai กันบอต — IP นอกไทย
-จะโดนบล็อกทั้งโดเมน จึงใช้วิธี "ดาวน์โหลดไฟล์เอง" แทน: เปิดหน้า schedule ของ
-สองสายนี้จากเครือข่ายในไทย กด export Excel แล้ววางไฟล์ไว้ตามที่ระบุข้างบน
-(KMTC: 1 ไฟล์ต่อเดือน วางในโฟลเดอร์ KMTC/ ;  ZIM: ผลจาก input/zim_schedule_scraper.py)
-ถ้าไม่มีไฟล์ Dashboard จะขึ้นสถานะ "ถูกบล็อก" พร้อมวิธีแก้
+    อ่านจากไฟล์ที่ดาวน์โหลดเอง (เว็บบล็อก IP นอกไทย):
+    KMTC     -> ไฟล์ .xls รายเดือนในโฟลเดอร์  KMTC/
+    ZIM      -> ไฟล์  zim_*.xlsx              ที่รากโปรเจกต์
+    HAL      -> ไฟล์  'HAL Schedule*.xlsx'    ที่รากโปรเจกต์ (รายเดือน)
+
+หมายเหตุ: เว็บ KMTC (ekmtc.com), ZIM (zim.com), HAL (ebiz.heungaline.com) เข้าจาก
+IP นอกไทยไม่ได้ จึงใช้วิธี "ดาวน์โหลดไฟล์เอง": รันสคริปต์ของสายนั้นจากเครือข่ายในไทย
+แล้ววางไฟล์ผลลัพธ์ไว้ตามที่ระบุข้างบน ถ้าไม่มีไฟล์ Dashboard จะขึ้นสถานะ "ถูกบล็อก"
+พร้อมวิธีแก้
 
 การทำงาน
 --------
@@ -67,19 +73,35 @@ HERE = Path(__file__).resolve().parent
 INPUT_DIR = HERE / "input"          # โฟลเดอร์เก็บสคริปต์ scraper ต้นฉบับ
 OUT_DIR = HERE / "output"
 CACHE_FILE = OUT_DIR / "_cache.json"
+DOCS_DIR = HERE / "docs"          # หน้าเว็บสำหรับ GitHub Pages
 
 LANE = "Laem Chabang, Thailand  \u2192  Shanghai, China"
 
 # สี/ลำดับ ของแต่ละแหล่งข้อมูล (ใช้บน Dashboard + ปฏิทิน)
 SOURCE_META = {
-    "SITC":        {"color": "#2563eb", "label": "SITC"},
-    "T.S. Lines":  {"color": "#16a34a", "label": "T.S. Lines"},
-    "KMTC":        {"color": "#db2777", "label": "KMTC"},
-    "ZIM":         {"color": "#f59e0b", "label": "ZIM"},
-    "CU Lines":    {"color": "#0891b2", "label": "CU Lines"},
-    "SJJ":         {"color": "#7c3aed", "label": "SJJ"},
+    "SITC":        {"color": "#f97316", "label": "SITC"},          # ส้ม
+    "T.S. Lines":  {"color": "#ec4899", "label": "T.S. Lines"},    # ชมพู
+    "KMTC":        {"color": "#38bdf8", "label": "KMTC"},          # ฟ้า
+    "HAL":         {"color": "#2563eb", "label": "HAL (Heung-A)"}, # น้ำเงิน
+    "ZIM":         {"color": "#6b7280", "label": "ZIM"},           # เทา
+    "CU Lines":    {"color": "#14b8a6", "label": "CU Lines"},      # เขียวอมฟ้า
+    "COSCO":       {"color": "#facc15", "label": "COSCO"},         # เหลือง
+    "Yang Ming":   {"color": "#dc2626", "label": "Yang Ming (YML)"}, # แดง
+    "SJJ":         {"color": "#7c3aed", "label": "SJJ"},           # ม่วง
 }
 DEFAULT_COLOR = "#64748b"
+
+
+def _fg(hex_color: str) -> str:
+    """เลือกสีตัวอักษร (ขาว/ดำ) ให้อ่านออกเมื่อวางบนพื้นสี hex_color"""
+    h = (hex_color or "").lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    try:
+        r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+    except ValueError:
+        return "#fff"
+    return "#1a1a1a" if (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 else "#fff"
 
 
 # --------------------------------------------------------------------------- #
@@ -122,6 +144,8 @@ def parse_dt(value) -> tuple[str | None, dt.date | None]:
     s = s.replace("T", " ")
     # ISO offset เช่น +03:00 ท้ายสุด
     s = re.sub(r"([+\-]\d{2}:?\d{2})$", "", s).strip()
+    # ตัดชื่อวันขึ้นต้น เช่น 'Monday, 14-SEP-2026' (รูปแบบของ CMA CGM)
+    s = re.sub(r"^[A-Za-z]{3,},\s*", "", s).strip()
 
     # 1) YYYY-MM-DD หรือ YYYY/MM/DD (อาจมีเวลา)
     m = re.match(r"(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ ](\d{1,2}):(\d{2}))?", s)
@@ -147,7 +171,19 @@ def parse_dt(value) -> tuple[str | None, dt.date | None]:
             return f"{date.isoformat()} {int(m.group(4)):02d}:{m.group(5)}", date
         return date.isoformat(), date
 
-    # 2) DD-Month-YYYY
+    # 1c) DD/MM/YYYY  (รูปแบบของ RCL)
+    m = re.match(r"(\d{1,2})/(\d{1,2})/(\d{4})(?:[ ](\d{1,2}):(\d{2}))?", s)
+    if m:
+        d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            date = dt.date(y, mo, d)
+        except ValueError:
+            return s, None
+        if m.group(4) is not None:
+            return f"{date.isoformat()} {int(m.group(4)):02d}:{m.group(5)}", date
+        return date.isoformat(), date
+
+    # 2) DD-Month-YYYY  /  DD-SEP-2026
     m = re.match(r"(\d{1,2})[-\s]([A-Za-z]+)[-\s](\d{4})", s)
     if m and m.group(2).lower() in MONTHS:
         d, mo, y = int(m.group(1)), MONTHS[m.group(2).lower()], int(m.group(3))
@@ -326,12 +362,17 @@ def _name_voy(text):
 
 
 # --------------------------------------------------------------------------- #
-#  KMTC + ZIM: อ่านจากไฟล์ที่ผู้ใช้ดาวน์โหลดเอง (เว็บ 2 รายนี้บล็อก IP นอกไทย)    #
+#  KMTC + ZIM + HAL: อ่านจากไฟล์ที่ผู้ใช้ดาวน์โหลดเอง (เว็บกลุ่มนี้บล็อก IP นอกไทย) #
 #  - KMTC : ไฟล์ .xls รายเดือนในโฟลเดอร์ KMTC/  (export จากหน้า Leg Schedule)     #
 #  - ZIM  : ไฟล์ zim_*.xlsx ที่ราก repo (ผลจาก input/zim_schedule_scraper.py)     #
+#  - HAL  : ไฟล์ 'HAL Schedule*.xlsx' รายเดือน (ผลจาก hal_schedule_export.py)     #
 # --------------------------------------------------------------------------- #
 KMTC_DIR = HERE / "KMTC"
 ZIM_GLOBS = ("zim_*.xlsx", "zim_*.xls", "input/zim_*.xlsx", "exports/zim_*.xlsx")
+HAL_GLOBS = ("HAL Schedule*.xls*", "HAL_Schedule*.xls*", "hal_schedule*.xls*",
+             "downloads/HAL*.xls*", "input/HAL*.xls*", "exports/HAL*.xls*")
+# service ของ HAL ที่ให้ตัดออก (เรือไม่ได้วิ่งเส้นนี้จริง)
+HAL_SKIP_SERVICES = {"CHT", "BTS"}
 
 
 def fetch_kmtc(start: dt.date, end: dt.date) -> list[dict]:
@@ -386,52 +427,180 @@ def fetch_kmtc(start: dt.date, end: dt.date) -> list[dict]:
     return out
 
 
-def _find_zim_file() -> "Path | None":
-    for pat in ZIM_GLOBS:
+def _first_file(globs) -> "Path | None":
+    for pat in globs:
         hits = sorted(HERE.glob(pat))
         if hits:
             return hits[-1]
     return None
 
 
-def fetch_zim(start: dt.date, end: dt.date) -> list[dict]:
-    import openpyxl
+def _all_files(globs) -> list:
+    seen, out = set(), []
+    for pat in globs:
+        for p in sorted(HERE.glob(pat)):
+            rp = p.resolve()
+            if rp not in seen:
+                seen.add(rp)
+                out.append(p)
+    return out
 
-    path = _find_zim_file()
+
+def _sheet_rows(path: "Path") -> list[list]:
+    """คืนทุกแถวของชีตแรกเป็น list[list] — ลอง openpyxl ก่อน ถ้าไฟล์ style เพี้ยน
+    (พบในไฟล์ export แบบ DataTables) ค่อย fallback ไป python-calamine"""
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
+        rows = [list(r) for r in wb.active.iter_rows(values_only=True)]
+        wb.close()
+        return rows
+    except Exception:
+        from python_calamine import CalamineWorkbook
+        return CalamineWorkbook.from_path(str(path)).get_sheet_by_index(0).to_python()
+
+
+def _xlsx_rows(path: "Path") -> list[dict]:
+    """อ่านชีตแรกของ .xlsx เป็น list[dict] โดยใช้แถวแรกเป็นหัวคอลัมน์"""
+    rows = _sheet_rows(path)
+    if not rows:
+        return []
+    header = [str(c).strip() if c is not None else "" for c in rows[0]]
+    out = []
+    for row in rows[1:]:
+        if not any(c is not None and str(c).strip() for c in row):
+            continue
+        out.append({header[i]: row[i] for i in range(min(len(header), len(row)))})
+    return out
+
+
+def fetch_hal(start: dt.date, end: dt.date) -> list[dict]:
+    files = _all_files(HAL_GLOBS)
+    if not files:
+        raise SourceBlocked(
+            "ไม่พบไฟล์ 'HAL Schedule*.xlsx' — เว็บ HAL (ebiz.heungaline.com) เข้าจากนอกไทยไม่ได้ "
+            "ให้รัน `python hal_schedule_export.py --no-headless` จากเครือข่ายในไทย "
+            "แล้ววางไฟล์ .xlsx รายเดือนไว้ที่ราก repo")
+    out, seen = [], set()
+    for path in files:
+        for r in _xlsx_rows(path):
+            # ตัดเที่ยวที่ปิดรับจองแล้ว (Booking = "Closed")
+            if str(r.get("Booking") or "").strip().lower().startswith("close"):
+                continue
+            # ตัด service ที่อยู่ในบัญชีข้าม (เรือไม่ได้วิ่งเส้นนี้จริง)
+            if str(r.get("Service") or "").strip().upper() in HAL_SKIP_SERVICES:
+                continue
+            vv = str(r.get("Vessel/Voyage") or "").replace("\r", "\n")
+            if "\n" in vv:
+                vessel, _, voyage = vv.partition("\n")
+            else:
+                vessel, voyage = _name_voy(vv)
+            _, d = parse_dt(r.get("ETD"))
+            if d is None or not (start <= d <= end):
+                continue
+            key = (norm_vessel(vessel), (voyage or "").strip(), d.isoformat())
+            if key in seen:
+                continue
+            seen.add(key)
+            dep = [p.strip() for p in str(r.get("Departure") or "").split("\n") if p.strip()]
+            arr = [p.strip() for p in str(r.get("Arrival") or "").split("\n") if p.strip()]
+            out.append(_rec(
+                "HAL", carrier="HAL",
+                service=clean(r.get("Service")),
+                vessel=vessel.strip(), voyage=(voyage or "").strip(),
+                pol=dep[0] if dep else "LAEM CHABANG",
+                pod=arr[0] if arr else "SHANGHAI",
+                pol_terminal=dep[1] if len(dep) > 1 else None,
+                pod_terminal=arr[1] if len(arr) > 1 else None,
+                etd=r.get("ETD"), eta=r.get("ETA"),
+                transit_days=r.get("T/T"),
+                direct_or_ts=clean(r.get("T/S")) or "Direct",
+                doc_cutoff=r.get("DOCU Closing"), cy_cutoff=r.get("CNTR Closing"),
+            ))
+    return out
+
+
+def fetch_zim(start: dt.date, end: dt.date) -> list[dict]:
+    path = _first_file(ZIM_GLOBS)
     if path is None:
         raise SourceBlocked(
             "ไม่พบไฟล์ zim_*.xlsx — เว็บ ZIM บล็อก IP นอกไทย ให้รัน "
             "`python input/zim_schedule_scraper.py` จากเครือข่ายในไทย "
             "แล้ววางไฟล์ผลลัพธ์ (เช่น zim_laemchabang_shanghai_schedule.xlsx) ไว้ที่ราก repo")
 
-    wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
-    ws = wb.active
-    rows = list(ws.iter_rows(values_only=True))
-    wb.close()
-    if not rows:
-        return []
-    header = [str(c or "").strip() for c in rows[0]]
-    idx = {name: i for i, name in enumerate(header)}
-
-    def cell(row, name):
-        i = idx.get(name)
-        return row[i] if i is not None and i < len(row) else None
-
     out = []
-    for row in rows[1:]:
-        if not any(row):
-            continue
-        _, etd_d = parse_dt(cell(row, "Departure"))
+    for r in _xlsx_rows(path):
+        _, etd_d = parse_dt(r.get("Departure"))
         if etd_d is None or not (start <= etd_d <= end):
             continue
         out.append(_rec(
             "ZIM", carrier="ZIM",
-            service=clean(cell(row, "Vessel Code")),
-            vessel=cell(row, "Vessel Name"), voyage=cell(row, "Voyage"),
+            service=clean(r.get("Vessel Code")),
+            vessel=r.get("Vessel Name"), voyage=r.get("Voyage"),
             pol="LAEM CHABANG", pod="SHANGHAI",
-            etd=cell(row, "Departure"), eta=cell(row, "Arrival"),
-            transit_days=cell(row, "Transit Time (Days)"),
-            direct_or_ts=clean(cell(row, "Transit Type")) or "Direct",
+            etd=r.get("Departure"), eta=r.get("Arrival"),
+            transit_days=r.get("Transit Time (Days)"),
+            direct_or_ts=clean(r.get("Transit Type")) or "Direct",
+        ))
+    return out
+
+
+def fetch_cosco(start: dt.date, end: dt.date) -> list[dict]:
+    import cosco_schedule as m
+    import requests
+    session = requests.Session()
+    try:
+        origin = http_retry(lambda: m.find_city(session, "Laem Chabang"))
+        dest = http_retry(lambda: m.find_city(session, "Shanghai"))
+        records = http_retry(lambda: m.fetch_schedule(session, origin, dest, start, end))
+    except SystemExit as exc:  # find_city/fetch_schedule ยก SystemExit เมื่อไม่พบเมือง/มี error
+        raise RuntimeError(f"COSCO: {exc}") from exc
+
+    out, seen = [], set()
+    for r in m.to_rows(records):
+        svc, _, voy = str(r.get("Service/Voyage") or "").partition("/")
+        _, d = parse_dt(r.get("ETD"))
+        if d is None or not (start <= d <= end):
+            continue
+        key = (norm_vessel(r.get("Vessel")), voy.strip(), d.isoformat())
+        if key in seen:       # COSCO ส่งหลายแถวต่อเที่ยว (แยกตามชนิดสินค้า/haulage)
+            continue
+        seen.add(key)
+        out.append(_rec(
+            "COSCO", carrier="COSCO",
+            service=svc.strip() or None,
+            vessel=r.get("Vessel"), voyage=voy.strip() or None,
+            pol=r.get("POL") or "LAEM CHABANG", pod=r.get("POD") or "SHANGHAI",
+            etd=r.get("ETD"), eta=r.get("ETA"),
+            transit_days=r.get("Transit (days)"),
+            cy_cutoff=r.get("Cut Off"),
+        ))
+    return out
+
+
+def fetch_yml(start: dt.date, end: dt.date) -> list[dict]:
+    import yml_schedule_lcb_shanghai as m
+    search_start = max(start, dt.date.today())   # YML API ปฏิเสธ startDate ที่เป็นอดีต (HTTP 400)
+    if search_start > end:
+        return []
+    rows = m.fetch_schedule("THLCB", "CNSHA", search_start, end)
+    out = []
+    for r in rows:
+        _, d = parse_dt(r.get("masterETD"))
+        if d is None or not (start <= d <= end):
+            continue
+        ts = str(r.get("transshipment") or "").strip()
+        out.append(_rec(
+            "Yang Ming", carrier="Yang Ming",
+            service=clean(r.get("masterVoyageCode")),
+            vessel=r.get("masterVesselName"),
+            voyage=r.get("masterComnVoyage") or r.get("masterVoyageCode"),
+            pol=r.get("placeOfReceipt") or "LAEM CHABANG",
+            pod=r.get("placeOfDelivery") or "SHANGHAI",
+            etd=r.get("masterETD"), eta=r.get("masterETA"),
+            transit_days=r.get("transitDays"),
+            direct_or_ts="T/S" if ts and ts.upper() not in {"N", "NO", "DIRECT", "0"} else "Direct",
+            cy_cutoff=r.get("cutoffCY"), vgm_cutoff=r.get("cutoffVGM"),
         ))
     return out
 
@@ -466,8 +635,11 @@ SOURCES = {
     "sitc":    ("SITC",        fetch_sitc),
     "tslines": ("T.S. Lines",  fetch_tslines),
     "kmtc":    ("KMTC",        fetch_kmtc),
+    "hal":     ("HAL",         fetch_hal),
     "zim":     ("ZIM",         fetch_zim),
     "culines": ("CU Lines",    fetch_culines),
+    "cosco":   ("COSCO",       fetch_cosco),
+    "yml":     ("Yang Ming",   fetch_yml),
     "sjj":     ("SJJ",         fetch_jj),
 }
 
@@ -662,13 +834,7 @@ h2{font-size:16px;margin:28px 0 12px;padding-bottom:6px;border-bottom:2px solid 
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
 .kpi .v{font-size:26px;font-weight:700}
 .kpi .l{color:var(--muted);font-size:12px;margin-top:2px}
-.srcgrid{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
-.src{display:flex;align-items:flex-start;gap:10px}
-.dot{width:12px;height:12px;border-radius:50%;margin-top:3px;flex:none}
-.src .name{font-weight:600}
-.src .meta{color:var(--muted);font-size:12px}
-.ok{color:#16a34a;font-weight:600}.bad{color:#dc2626;font-weight:600}.warn{color:#d97706;font-weight:600}
-.blocked{color:#b45309;font-weight:600}
+.dot{width:11px;height:11px;border-radius:50%;flex:none}
 .bar{display:flex;align-items:center;gap:8px;margin:6px 0}
 .bar .lab{width:150px;font-size:12px;color:var(--muted);text-align:right;flex:none}
 .bar .track{flex:1;background:#eef2f7;border-radius:6px;overflow:hidden}
@@ -682,25 +848,25 @@ tr.main{cursor:pointer}
 tr.main:hover{background:#f8fafc}
 tr.details{display:none;background:#fbfcfe}
 tr.details.show{display:table-row}
-.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;margin:1px 2px}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;margin:1px 2px}
 .pill{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;background:#eef2f7;color:#334155;margin-right:4px}
 .tag-direct{background:#dcfce7;color:#166534}.tag-ts{background:#fef9c3;color:#854d0e}
-.caltabs{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}
-.caltab{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 12px;
-        cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:var(--muted)}
-.caltab:hover{border-color:var(--accent);color:var(--ink)}
-.caltab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.caltab .cnt{display:inline-block;margin-left:7px;background:rgba(0,0,0,.12);border-radius:999px;
-             padding:0 7px;font-size:11px}
-.caltab.active .cnt{background:rgba(255,255,255,.28)}
-.calpanel[hidden]{display:none}
+.mtabs{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}
+.mtab{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 12px;
+      cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:var(--muted)}
+.mtab:hover{border-color:var(--accent);color:var(--ink)}
+.mtab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.mtab .cnt{display:inline-block;margin-left:7px;background:rgba(0,0,0,.12);border-radius:999px;
+           padding:0 7px;font-size:11px}
+.mtab.active .cnt{background:rgba(255,255,255,.28)}
+.calpanel[hidden],.detpanel[hidden]{display:none}
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:18px}
 .cal .h{font-size:11px;color:var(--muted);text-align:center;padding:4px 0;font-weight:600}
 .cal .cell{background:var(--card);border:1px solid var(--line);border-radius:8px;min-height:78px;padding:4px}
 .cal .cell.dim{background:#f1f5f9}
 .cal .d{font-size:11px;color:var(--muted);font-weight:600}
 .cal .ev{font-size:10px;line-height:1.25;margin-top:2px;padding:1px 3px;border-radius:4px;
-         color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+         white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .legend{display:flex;flex-wrap:wrap;gap:12px;margin:6px 0 14px}
 .legend span{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px}
 .foot{color:var(--muted);font-size:12px;margin-top:30px;text-align:center}
@@ -713,13 +879,17 @@ document.querySelectorAll('tr.main').forEach(function(r){
     if(n&&n.classList.contains('details'))n.classList.toggle('show');
   });
 });
-document.querySelectorAll('.caltab').forEach(function(t){
-  t.addEventListener('click',function(){
-    document.querySelectorAll('.caltab').forEach(function(x){x.classList.remove('active');});
-    document.querySelectorAll('.calpanel').forEach(function(x){x.hidden=true;});
-    t.classList.add('active');
-    var el=document.getElementById(t.dataset.t);
-    if(el)el.hidden=false;
+// ตัวเลือกเดือน: .mtabs[data-panels="xxx"] คุมกลุ่ม panel คลาส .xxx ที่มี data-m ตรงกัน
+document.querySelectorAll('.mtabs').forEach(function(group){
+  var cls=group.getAttribute('data-panels');
+  group.querySelectorAll('.mtab').forEach(function(t){
+    t.addEventListener('click',function(){
+      group.querySelectorAll('.mtab').forEach(function(x){x.classList.remove('active');});
+      t.classList.add('active');
+      document.querySelectorAll('.'+cls).forEach(function(p){
+        p.hidden = (p.getAttribute('data-m') !== t.getAttribute('data-m'));
+      });
+    });
   });
 });
 """
@@ -769,10 +939,10 @@ def _calendar(merged: list[dict], start: dt.date, end: dt.date) -> str:
 
     tabs, panels = [], []
     for i, mo in enumerate(months):
-        mid = f"cal-{mo:%Y-%m}"
+        ym = f"{mo:%Y-%m}"
         is_def = (i == default_idx)
         tabs.append(
-            f"<button class='caltab{' active' if is_def else ''}' data-t='{mid}'>"
+            f"<button class='mtab{' active' if is_def else ''}' data-m='{ym}'>"
             f"{mo:%b %Y}<span class='cnt'>{month_count(mo)}</span></button>")
 
         first_dow = mo.weekday()
@@ -783,7 +953,7 @@ def _calendar(merged: list[dict], start: dt.date, end: dt.date) -> str:
             iso = dt.date(mo.year, mo.month, day).isoformat()
             evs = by_day.get(iso, [])
             ev_html = "".join(
-                f"<div class='ev' style='background:{carrier_color(e)}' "
+                f"<div class='ev' style='background:{carrier_color(e)};color:{_fg(carrier_color(e))}' "
                 f"title='{html.escape(e['vessel'])} — {html.escape(', '.join(e['carriers']))} "
                 f"| ETD {html.escape(e['etd'] or iso)}'>"
                 f"{html.escape(e['vessel'][:18])}</div>"
@@ -791,10 +961,83 @@ def _calendar(merged: list[dict], start: dt.date, end: dt.date) -> str:
             cells.append(f"<div class='cell'><div class='d'>{day}</div>{ev_html}</div>")
         head = "".join(f"<div class='h'>{d}</div>" for d in dows)
         panels.append(
-            f"<div class='calpanel' id='{mid}'{'' if is_def else ' hidden'}>"
+            f"<div class='calpanel' data-m='{ym}'{'' if is_def else ' hidden'}>"
             f"<div class='cal'>{head}{''.join(cells)}</div></div>")
 
-    return f"<div class='caltabs'>{''.join(tabs)}</div>{''.join(panels)}"
+    return (f"<div class='mtabs' data-panels='calpanel'>{''.join(tabs)}</div>"
+            f"{''.join(panels)}")
+
+
+def _detail_by_month(merged: list[dict], start: dt.date, end: dt.date) -> str:
+    """ตารางรายละเอียดเที่ยวเรือ แบ่งเป็นเดือน (ปุ่มเลือกเดือน + ตารางทีละเดือน)"""
+    months: list[dt.date] = []
+    cur = dt.date(start.year, start.month, 1)
+    last = dt.date(end.year, end.month, 1)
+    while cur <= last:
+        months.append(cur)
+        cur = dt.date(cur.year + (cur.month == 12), (cur.month % 12) + 1, 1)
+
+    by_month: dict[str, list[dict]] = {}
+    for m in merged:
+        if m["etd_date"]:
+            by_month.setdefault(m["etd_date"][:7], []).append(m)
+
+    default_idx = next((i for i, mo in enumerate(months)
+                        if by_month.get(f"{mo:%Y-%m}")), 0)
+
+    head = ("<tr><th>วัน ETD</th><th>เรือ</th><th>ETD</th><th>ETA</th>"
+            "<th>Transit (วัน)</th><th>ประเภท</th><th>จองผ่าน</th></tr>")
+    tabs, panels = [], []
+    for i, mo in enumerate(months):
+        ym = f"{mo:%Y-%m}"
+        items = by_month.get(ym, [])
+        is_def = (i == default_idx)
+        tabs.append(
+            f"<button class='mtab{' active' if is_def else ''}' data-m='{ym}'>"
+            f"{mo:%b %Y}<span class='cnt'>{len(items)}</span></button>")
+        body = "".join(_detail_row(m, j) for j, m in enumerate(items)) or (
+            "<tr><td colspan='7' style='color:var(--muted)'>ไม่มีเที่ยวเรือในเดือนนี้</td></tr>")
+        panels.append(
+            f"<div class='detpanel' data-m='{ym}'{'' if is_def else ' hidden'}>"
+            f"<table>{head}{body}</table></div>")
+
+    return (f"<div class='mtabs' data-panels='detpanel'>{''.join(tabs)}</div>"
+            f"{''.join(panels)}")
+
+
+def _detail_row(m: dict, idx: int) -> str:
+    badges = ""
+    for c in m["carriers"]:
+        col = SOURCE_META.get(c, {}).get("color", DEFAULT_COLOR)
+        badges += (f"<span class='badge' style='background:{col};color:{_fg(col)}'>"
+                   f"{html.escape(c)}</span>")
+    tag = "tag-direct" if m["direct_or_ts"] == "Direct" else "tag-ts"
+    sub = []
+    for o in m["offers"]:
+        sub.append(
+            "<tr><td>" + html.escape(o["carrier"]) + "</td>"
+            "<td>" + html.escape(o["voyage"] or "—") + "</td>"
+            "<td>" + html.escape(o["service"] or "—") + "</td>"
+            "<td>" + html.escape(o["etd"] or "—") + "</td>"
+            "<td>" + html.escape(o["eta"] or "—") + "</td>"
+            "<td>" + html.escape(f"{o['transit_days']:g}" if o["transit_days"] else "—") + "</td>"
+            "<td>" + html.escape(o["pol_terminal"] or "—") + "</td>"
+            "<td>" + html.escape(" / ".join(
+                x for x in [o["doc_cutoff"], o["cy_cutoff"], o["vgm_cutoff"]] if x) or "—")
+            + "</td></tr>")
+    detail = (
+        "<tr class='details'><td colspan='7'><table>"
+        "<tr><th>สายเรือ/ผู้ให้บริการ</th><th>Voyage</th><th>Service</th><th>ETD</th>"
+        "<th>ETA</th><th>Transit</th><th>ท่าต้นทาง</th><th>Cut-off (Doc/CY/VGM)</th></tr>"
+        + "".join(sub) + "</table></td></tr>")
+    return (
+        f"<tr class='main'><td>{html.escape(m['etd_date'] or '—')}</td>"
+        f"<td><b>{html.escape(m['vessel'])}</b></td>"
+        f"<td>{html.escape(m['etd'] or '—')}</td>"
+        f"<td>{html.escape(m['eta'] or '—')}</td>"
+        f"<td>{html.escape(transit_text(m['transit_days']) or '—')}</td>"
+        f"<td><span class='pill {tag}'>{html.escape(m['direct_or_ts'])}</span></td>"
+        f"<td>{badges}</td></tr>{detail}")
 
 
 def write_html(merged, records, statuses, start, end, path: Path):
@@ -819,62 +1062,9 @@ def write_html(merged, records, statuses, start, end, path: Path):
     per_week = {f"W{wk:02d} ({mon:%d %b})": c
                for (mon, wk), c in sorted(week_counts.items())}
 
-    # source status cards
-    src_cards = []
-    for st in statuses:
-        meta = SOURCE_META.get(st["Source"], {})
-        col = meta.get("color", DEFAULT_COLOR)
-        if st["Status"] == "ok":
-            state = f"<span class='ok'>&#10003; ทำงานปกติ</span> &middot; {st['Sailings']} เที่ยว"
-        elif st["Status"] == "empty":
-            state = "<span class='warn'>&#9888; เชื่อมต่อได้ แต่ไม่พบเที่ยวเรือ</span>"
-        elif st["Status"] == "blocked":
-            state = "<span class='blocked'>&#9940; ถูกบล็อกการเข้าถึง (IP/ภูมิภาค)</span>"
-        elif st["Status"] == "skipped":
-            state = "<span class='warn'>&#8210; ข้ามไว้ (--skip)</span>"
-        else:
-            state = "<span class='bad'>&#10007; ดึงข้อมูลไม่สำเร็จ</span>"
-        note = f"<div class='meta'>{html.escape(st.get('Detail') or '')}</div>" if st.get("Detail") else ""
-        src_cards.append(
-            f"<div class='card src'><div class='dot' style='background:{col}'></div>"
-            f"<div><div class='name'>{html.escape(str(SOURCE_META.get(st['Source'],{}).get('label', st['Source'])))}</div>"
-            f"<div class='meta'>{state}</div>{note}</div></div>")
-
     legend = "".join(
         f"<span><i class='dot' style='display:inline-block;background:{m['color']}'></i>{html.escape(m['label'])}</span>"
         for m in SOURCE_META.values())
-
-    # detail table
-    rows = []
-    for i, m in enumerate(merged):
-        badges = "".join(
-            f"<span class='badge' style='background:{SOURCE_META.get(c,{}).get('color',DEFAULT_COLOR)}'>{html.escape(c)}</span>"
-            for c in m["carriers"])
-        tag = "tag-direct" if m["direct_or_ts"] == "Direct" else "tag-ts"
-        sub = []
-        for o in m["offers"]:
-            sub.append(
-                "<tr><td>" + html.escape(o["carrier"]) + "</td>"
-                "<td>" + html.escape(o["voyage"] or "—") + "</td>"
-                "<td>" + html.escape(o["service"] or "—") + "</td>"
-                "<td>" + html.escape(o["etd"] or "—") + "</td>"
-                "<td>" + html.escape(o["eta"] or "—") + "</td>"
-                "<td>" + html.escape(f"{o['transit_days']:g}" if o["transit_days"] else "—") + "</td>"
-                "<td>" + html.escape(o["pol_terminal"] or "—") + "</td>"
-                "<td>" + html.escape(" / ".join(x for x in [o["doc_cutoff"], o["cy_cutoff"], o["vgm_cutoff"]] if x) or "—") + "</td></tr>")
-        detail = (
-            "<tr class='details'><td colspan='7'><table>"
-            "<tr><th>สายเรือ/ผู้ให้บริการ</th><th>Voyage</th><th>Service</th><th>ETD</th>"
-            "<th>ETA</th><th>Transit</th><th>ท่าต้นทาง</th><th>Cut-off (Doc/CY/VGM)</th></tr>"
-            + "".join(sub) + "</table></td></tr>")
-        rows.append(
-            f"<tr class='main'><td>{html.escape(m['etd_date'] or '—')}</td>"
-            f"<td><b>{html.escape(m['vessel'])}</b></td>"
-            f"<td>{html.escape(m['etd'] or '—')}</td>"
-            f"<td>{html.escape(m['eta'] or '—')}</td>"
-            f"<td>{html.escape(transit_text(m['transit_days']) or '—')}</td>"
-            f"<td><span class='pill {tag}'>{html.escape(m['direct_or_ts'])}</span></td>"
-            f"<td>{badges}</td></tr>{detail}")
 
     doc = f"""<!doctype html><html lang="th"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -883,10 +1073,11 @@ def write_html(merged, records, statuses, start, end, path: Path):
 <h1>&#128674; ตารางการเดินเรือ &mdash; {html.escape(LANE)}</h1>
 <p class="sub">ช่วงข้อมูล {start:%d %b %Y} &ndash; {end:%d %b %Y}
 &nbsp;|&nbsp; สร้างเมื่อ {dt.datetime.now():%Y-%m-%d %H:%M}
-&nbsp;|&nbsp; รวมข้อมูลจาก {sum(1 for s in statuses if s['Status']=='ok')}/{len(statuses)} แหล่ง</p>
+&nbsp;|&nbsp; รวมข้อมูลจาก {sum(1 for s in statuses if s['Status']=='ok')}/{len(statuses)} สายเรือ</p>
 
-<h2>สถานะแหล่งข้อมูล</h2>
-<div class="grid srcgrid">{''.join(src_cards)}</div>
+<h2>ปฏิทินตารางเรือ (ตามวัน ETD)</h2>
+<div class="legend">{legend}</div>
+{_calendar(merged, start, end)}
 
 <h2>ภาพรวม</h2>
 <div class="grid kpis">
@@ -904,15 +1095,8 @@ def write_html(merged, records, statuses, start, end, path: Path):
 <h2>จำนวนเที่ยวเรือ แยกตามสัปดาห์ (ตาม ETD)</h2>
 <div class="card">{_bars(per_week, {}, keep_order=True)}</div>
 
-<h2>ปฏิทินตารางเรือ (ตามวัน ETD)</h2>
-<div class="legend">{legend}</div>
-{_calendar(merged, start, end)}
-
-<h2>รายละเอียดเที่ยวเรือ (คลิกแถวเพื่อดูรายสายเรือ)</h2>
-<table>
-<tr><th>วัน ETD</th><th>เรือ</th><th>ETD</th><th>ETA</th><th>Transit (วัน)</th><th>ประเภท</th><th>จองผ่าน</th></tr>
-{''.join(rows)}
-</table>
+<h2>รายละเอียดเที่ยวเรือ (เลือกดูทีละเดือน &middot; คลิกแถวเพื่อดูรายสายเรือ)</h2>
+{_detail_by_month(merged, start, end)}
 
 <p class="foot">ข้อมูลเพื่อการอ้างอิงเบื้องต้นเท่านั้น โปรดยืนยัน schedule / cut-off กับสายเรือหรือตัวแทนอีกครั้งก่อนใช้งานจริง<br>
 สร้างโดย build_shanghai_schedule.py</p>
@@ -999,6 +1183,11 @@ def main():
     write_excel(merged, records, statuses, xlsx)
     write_ics(merged, ics)
     write_html(merged, records, statuses, start, end, htmlf)
+
+    # เผยแพร่หน้า Dashboard ผ่าน GitHub Pages: docs/laem-chabang-shanghai/index.html
+    docs_page = DOCS_DIR / "laem-chabang-shanghai" / "index.html"
+    docs_page.parent.mkdir(parents=True, exist_ok=True)
+    docs_page.write_text(htmlf.read_text(encoding="utf-8"), encoding="utf-8")
     CACHE_FILE.write_text(json.dumps(
         {"start": start.isoformat(), "end": end.isoformat(),
          "records": records, "statuses": statuses,
@@ -1016,6 +1205,7 @@ def main():
     print(f"  {xlsx}")
     print(f"  {htmlf}")
     print(f"  {ics}")
+    print(f"  {docs_page}   (GitHub Pages)")
 
 
 if __name__ == "__main__":
