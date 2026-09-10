@@ -77,6 +77,9 @@ DOCS_DIR = HERE / "docs"          # หน้าเว็บสำหรับ G
 
 LANE = "Laem Chabang, Thailand  \u2192  Shanghai, China"
 
+# \u0e25\u0e34\u0e07\u0e01\u0e4c\u0e1f\u0e2d\u0e23\u0e4c\u0e21\u0e43\u0e2b\u0e49\u0e04\u0e19\u0e19\u0e2d\u0e01\u0e2a\u0e48\u0e07\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e40\u0e17\u0e35\u0e48\u0e22\u0e27\u0e40\u0e23\u0e37\u0e2d\u0e40\u0e02\u0e49\u0e32\u0e21\u0e32 (GitHub Issue form)
+SUBMIT_URL = "https://github.com/NarisaraM/shanghai-service/issues/new?template=new-sailing.yml"
+
 # สี/ลำดับ ของแต่ละแหล่งข้อมูล (ใช้บน Dashboard + ปฏิทิน)
 SOURCE_META = {
     "SITC":        {"color": "#f97316", "label": "SITC"},          # ส้ม
@@ -878,6 +881,12 @@ tr.wk-off,tr.wk-off + tr.details{display:none !important}
 .legend{display:flex;flex-wrap:wrap;gap:12px;margin:6px 0 14px}
 .legend span{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px}
 .foot{color:var(--muted);font-size:12px;margin-top:30px;text-align:center}
+.submit{display:flex;align-items:center;gap:12px;margin:0 0 22px;background:var(--accent);
+        border-radius:12px;padding:14px 18px;text-decoration:none;color:#fff}
+.submit:hover{filter:brightness(.94)}
+.submit .name{display:block;font-weight:700;font-size:15px}
+.submit .desc{display:block;font-size:12px;margin-top:2px;color:rgba(255,255,255,.85)}
+.submit .arrow{margin-left:auto;font-size:18px;flex:none}
 """
 
 JS = """
@@ -1091,6 +1100,14 @@ def write_html(merged, records, statuses, start, end, path: Path):
 <p class="sub">ช่วงข้อมูล {start:%d %b %Y} &ndash; {end:%d %b %Y}
 &nbsp;|&nbsp; สร้างเมื่อ {dt.datetime.now():%Y-%m-%d %H:%M}
 &nbsp;|&nbsp; รวมข้อมูลจาก {sum(1 for s in statuses if s['Status']=='ok')}/{len(statuses)} สายเรือ</p>
+
+<a class="submit" href="{SUBMIT_URL}">
+  <span>
+    <span class="name">&#128666; ส่งข้อมูลเที่ยวเรือเข้ามา</span>
+    <span class="desc">เจอเที่ยวที่ขาด หรือข้อมูลไม่ตรง? แจ้งเพิ่ม/แก้ไขได้ที่นี่ (ต้องมีบัญชี GitHub)</span>
+  </span>
+  <span class="arrow">&rarr;</span>
+</a>
 
 <h2>ปฏิทินตารางเรือ (ตามวัน ETD)</h2>
 <div class="legend">{legend}</div>

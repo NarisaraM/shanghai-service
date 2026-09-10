@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: "📅 ดูตารางเรือรวม (Laem Chabang → Shanghai)"
+    url: https://narisaram.github.io/shanghai-service/laem-chabang-shanghai/
+    about: "เปิดตารางรวมทุกสายเรือ + ปฏิทิน + Dashboard ก่อนส่งข้อมูล"

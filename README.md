@@ -80,3 +80,17 @@ playwright install chromium
 - **เพิ่มบริการใหม่** — สร้างโฟลเดอร์ `docs/<ชื่อบริการ>/` พร้อม `index.html`
   ข้างใน แล้วเพิ่ม `<li>` ในรายการของ `docs/index.html` (มีคอมเมนต์บอกวิธีไว้)
   โดยตั้งชื่อลิงก์เป็นชื่อ Service นั้น ๆ
+
+## ให้คนอื่นส่งข้อมูลเที่ยวเรือเข้ามา
+
+ทั้งหน้า `docs/index.html` และ Dashboard มีปุ่ม **"ส่งข้อมูลเที่ยวเรือเข้ามา"**
+ที่ลิงก์ไปยัง GitHub Issue form (`.github/ISSUE_TEMPLATE/new-sailing.yml`)
+
+- ผู้ส่งต้องมีบัญชี GitHub (ล็อกอินฟรี) แล้วกรอกฟอร์ม: สายเรือ / ชื่อเรือ / voyage /
+  ETD Laem Chabang / ETA Shanghai / ที่มาข้อมูล
+- ทุกครั้งที่ส่ง จะเปิดเป็น Issue ใหม่ใน repo ติด label `sailing-submission`
+  ดูรวมได้ที่ <https://github.com/NarisaraM/shanghai-service/issues?q=label%3Asailing-submission>
+- นำข้อมูลที่ยืนยันแล้วไปใส่ในสคริปต์ scraper / ไฟล์ที่เกี่ยวข้อง แล้วรัน
+  `build_shanghai_schedule.py` ใหม่เพื่ออัปเดต Dashboard
+- แก้ฟิลด์ในฟอร์มได้ที่ `.github/ISSUE_TEMPLATE/new-sailing.yml` (ต้องอยู่บน `main`
+  ถึงจะมีผล) — ถ้าเปลี่ยนชื่อ label ให้แก้ทั้งไฟล์นี้และปุ่มลิงก์ใน `docs/`
